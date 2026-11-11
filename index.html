@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060912">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vector">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Vector Run Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: one-screen flight HUD. A circular pace reticle is the single bold element;
+     everything around it is quiet panels on a faint nav grid. Four stations in a bottom bar.
+     Single dark theme by choice: this page commits to one visual world. */
+  --void:#060912; --panel:#0c1322; --panel-2:#121d33; --line:#1f2e4b;
+  --text:#dce8ff; --dim:#8696b8;
+  --ice:#7fe9ff;                 /* accent */
+  --mint:#6dffb0; --amber:#ffb347; --rose:#ff6482;   /* semantic: good, caution, stop */
+  --f-display:'Oxanium','Chakra Petch',ui-monospace,Menlo,monospace;
+  --f-body:'Chakra Petch','Segoe UI',system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--void);color:var(--text);font:400 15px/1.45 var(--f-body);-webkit-font-smoothing:antialiased;overflow:hidden;
+  background-image:linear-gradient(rgba(127,233,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(127,233,255,.035) 1px,transparent 1px);background-size:32px 32px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column;max-width:520px;margin:0 auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 18px 8px}
+.brand{font:700 15px var(--f-display);letter-spacing:.32em}
+.brand i{font-style:normal;color:var(--ice)}
+.chip{font:600 10.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;padding:4px 8px;border:1px solid var(--line);border-radius:3px;color:var(--dim);white-space:nowrap}
+.chip[data-s=ok]{color:var(--mint);border-color:rgba(109,255,176,.4)}
+.chip[data-s=warn]{color:var(--amber);border-color:rgba(255,179,71,.4)}
+main{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 18px 24px;-webkit-overflow-scrolling:touch}
+.view{display:none;flex-direction:column;gap:14px}
+.view.on{display:flex}
+nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:rgba(6,9,18,.94);padding-bottom:env(safe-area-inset-bottom)}
+nav a{padding:13px 4px 12px;text-align:center;text-decoration:none;color:var(--dim);font:600 11px var(--f-display);letter-spacing:.2em;text-transform:uppercase;border-top:2px solid transparent;margin-top:-1px}
+nav a.on{color:var(--ice);border-top-color:var(--ice)}
+
+.lab{font:600 10.5px var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.num{font-family:var(--f-display);font-variant-numeric:tabular-nums}
+h2{font:600 12px var(--f-display);letter-spacing:.22em;text-transform:uppercase;color:var(--ice);text-wrap:balance}
+.hint{color:var(--dim);font-size:13.5px}
+.panel{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.panel.mark::before,.panel.mark::after{content:"";position:absolute;width:10px;height:10px;border:solid var(--ice);opacity:.8}
+.panel.mark::before{left:-1px;top:-1px;border-width:2px 0 0 2px}
+.panel.mark::after{right:-1px;bottom:-1px;border-width:0 2px 2px 0}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 0;min-width:0}
+.btn{border:1px solid var(--line);border-radius:4px;padding:12px 10px;background:var(--panel-2);font:600 13px var(--f-display);letter-spacing:.1em;text-transform:uppercase;min-height:46px}
+.btn:active{background:var(--line)}
+.btn.primary{background:var(--ice);color:#04121a;border-color:var(--ice);font-size:16px;letter-spacing:.24em;padding:16px;box-shadow:0 0 28px rgba(127,233,255,.25)}
+.btn.stop{border-color:rgba(255,100,130,.55);color:var(--rose)}
+.btn.small{min-height:36px;padding:7px 10px;font-size:11px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{padding:11px 2px;font:600 11.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border-right:1px solid var(--line);min-height:44px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ice);box-shadow:inset 0 -2px 0 var(--ice)}
+.stepper{display:grid;grid-template-columns:1fr 44px minmax(84px,auto) 44px;align-items:center;gap:8px}
+.stepper button{height:40px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);font:600 18px var(--f-display)}
+.stepper output{text-align:center;font:600 16px var(--f-display);font-variant-numeric:tabular-nums}
+.toggle{display:flex;align-items:center;gap:10px;font-size:14px}
+.toggle input{width:20px;height:20px;accent-color:var(--ice)}
+
+/* Reticle */
+.reticle{position:relative;width:min(290px,78vw);aspect-ratio:1;margin:2px auto 0;--tone:var(--ice)}
+.reticle svg{width:100%;height:100%;display:block}
+.reticle .tick{stroke:var(--line);stroke-width:2}
+.reticle .tick.maj{stroke:var(--dim)}
+.reticle .band{fill:none;stroke:var(--mint);stroke-width:7;opacity:.85}
+.reticle .ring{fill:none;stroke:var(--line);stroke-width:1.5}
+.reticle .glow{fill:none;stroke:var(--tone);stroke-width:2;opacity:.55;transition:stroke .4s}
+#needle{transform-origin:150px 150px;transition:transform .8s cubic-bezier(.3,.8,.3,1)}
+#needle path{fill:var(--tone);transition:fill .4s;filter:drop-shadow(0 0 6px var(--tone))}
+.reticle text{font:600 9px var(--f-display);letter-spacing:.18em;fill:var(--dim)}
+.core{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;padding:18%}
+#pace{font:700 clamp(52px,17vw,68px)/1 var(--f-display);font-variant-numeric:tabular-nums;color:var(--tone);transition:color .4s;text-shadow:0 0 24px color-mix(in srgb,var(--tone) 40%,transparent)}
+#state{font:600 13px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--tone);min-height:1.4em;text-wrap:balance}
+#sub{font-size:12.5px;color:var(--dim)}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 6px;text-align:center;display:flex;flex-direction:column;gap:3px}
+.stat b{font:700 22px var(--f-display);font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--panel-2);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ice);transition:width .5s}
+#trace{width:100%;height:150px;display:block;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+.warn{border-color:rgba(255,179,71,.5)}
+.warn h2{color:var(--amber)}
+
+/* Log */
+.run{background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.run>button{width:100%;display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:12px;text-align:left}
+.run svg.mini{width:54px;height:54px;border:1px solid var(--line);border-radius:3px;background:var(--void)}
+.run .when{font-size:12.5px;color:var(--dim)}
+.run .big{font:700 20px var(--f-display);font-variant-numeric:tabular-nums}
+.run .meta{font:500 12.5px var(--f-display);font-variant-numeric:tabular-nums;color:var(--dim);text-align:right;line-height:1.6}
+.run .detail{border-top:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:12px}
+.split{display:grid;grid-template-columns:38px 1fr 46px;gap:8px;align-items:center;font:500 12.5px var(--f-display);font-variant-numeric:tabular-nums}
+.split .bar i{transition:none}
+.split.best .bar i{background:var(--mint)}
+.tag{font:600 9.5px var(--f-display);letter-spacing:.14em;color:var(--amber);border:1px solid rgba(255,179,71,.45);border-radius:2px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+textarea{width:100%;min-height:70px;background:var(--void);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:8px;font:12px ui-monospace,Menlo,monospace}
+
+/* Debrief */
+.goal{display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:center}
+.goal svg{width:96px;height:96px}
+.ins{display:grid;grid-template-columns:4px 1fr;gap:12px}
+.ins::before{content:"";border-radius:2px;background:var(--ice)}
+.ins[data-t=good]::before{background:var(--mint)}
+.ins[data-t=warn]::before{background:var(--amber)}
+.ins b{display:block;font:600 14px var(--f-body)}
+.ins span{color:var(--dim);font-size:13.5px}
+.chart{width:100%;height:auto;display:block}
+.chart text{font:500 10px var(--f-display);fill:var(--dim);font-variant-numeric:tabular-nums}
+
+/* Train */
+.ex{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:start;text-align:left;width:100%;padding:9px 0;border-top:1px solid var(--line)}
+.ex:first-of-type{border-top:0}
+.ex .box{width:20px;height:20px;border:1.5px solid var(--dim);border-radius:3px;margin-top:2px;display:grid;place-items:center;font-size:13px;color:var(--void)}
+.ex[aria-pressed=true] .box{background:var(--mint);border-color:var(--mint)}
+.ex[aria-pressed=true] .nm{color:var(--dim);text-decoration:line-through}
+.ex .nm{font-weight:500}
+.ex .cue{display:block;color:var(--dim);font-size:13px}
+.ex .dose{font:600 12.5px var(--f-display);color:var(--ice);white-space:nowrap;font-variant-numeric:tabular-nums}
+ul.plain{list-style:none;padding:0;display:flex;flex-direction:column;gap:9px}
+ul.plain li{padding-left:16px;position:relative;font-size:14px}
+ul.plain li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:2px;background:var(--ice)}
+
+/* Finale */
+#finale{position:fixed;inset:0;z-index:20;background:var(--void);display:none;flex-direction:column}
+#finale.on{display:flex}
+#fx{position:absolute;inset:0;width:100%;height:100%}
+.fin{position:relative;margin-top:auto;padding:20px 18px calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;max-width:520px;width:100%;margin-inline:auto;background:linear-gradient(transparent,rgba(6,9,18,.92) 28%)}
+.fin h1{font:700 26px/1.1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--ice);text-wrap:balance}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;background:var(--panel-2);border:1px solid var(--ice);border-radius:4px;padding:10px 14px;font-size:13.5px;max-width:min(440px,calc(100% - 36px));width:max-content;display:none}
+#toast.on{display:block}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">VEC<i>/</i>TOR</div>
+    <span class="chip" id="gps">GPS standby</span>
+  </header>
+
+  <main id="main">
+    <!-- RUN -->
+    <section class="view" id="v-run">
+      <div class="reticle" id="reticle">
+        <svg viewBox="0 0 300 300" aria-hidden="true">
+          <g id="ticks"></g>
+          <circle class="ring" cx="150" cy="150" r="128"/>
+          <circle class="band" cx="150" cy="150" r="128" stroke-dasharray="53.6 804.3" transform="rotate(-102 150 150)"/>
+          <circle class="glow" cx="150" cy="150" r="104"/>
+          <g id="needle"><path d="M150 26 l10 -19 h-20z"/></g>
+          <text x="34" y="262" text-anchor="middle">SLOW</text>
+          <text x="266" y="262" text-anchor="middle">FAST</text>
+        </svg>
+        <div class="core">
+          <span class="lab" id="paceLabel">Recommended /km</span>
+          <div id="pace">7:30</div>
+          <div id="state"></div>
+          <div id="sub"></div>
+        </div>
+      </div>
+
+      <div id="idle" style="display:flex;flex-direction:column;gap:14px">
+        <div class="row">
+          <button class="btn small" id="slower" type="button">− 5 s slower</button>
+          <button class="btn small" id="faster" type="button">5 s faster +</button>
+        </div>
+        <div>
+          <div class="lab" style="margin-bottom:6px">Effort</div>
+          <div class="seg" id="effort">
+            <button type="button" data-v="easy">Easy</button>
+            <button type="button" data-v="steady">Steady</button>
+            <button type="button" data-v="push">Push</button>
+          </div>
+          <p class="hint" id="effNote" style="margin-top:6px"></p>
+        </div>
+        <div>
+          <div class="lab" style="margin-bottom:6px">Run type</div>
+          <div class="seg" id="mode">
+            <button type="button" data-v="free">Free</button>
+            <button type="button" data-v="dist">Distance</button>
+            <button type="button" data-v="time">Time</button>
+            <button type="button" data-v="iv">Intervals</button>
+          </div>
+        </div>
+        <div class="panel" id="cfg"></div>
+        <label class="toggle"><input type="checkbox" id="voice"> Voice cues during the run</label>
+        <div class="panel warn" id="gpsmsg" hidden>
+          <h2>GPS is not available here</h2>
+          <p class="hint" id="gpsmsgText"></p>
+          <button class="btn" id="simBtn" type="button">Run a simulated demo</button>
+        </div>
+        <button class="btn primary" id="start" type="button">Start run</button>
+      </div>
+
+      <div id="live" hidden style="display:flex;flex-direction:column;gap:14px">
+        <div class="stats">
+          <div class="stat"><span class="lab">Time</span><b id="lt">0:00</b></div>
+          <div class="stat"><span class="lab">Km</span><b id="ld">0.00</b></div>
+          <div class="stat"><span class="lab">Avg /km</span><b id="la">–:––</b></div>
+        </div>
+        <div class="panel">
+          <div style="display:flex;justify-content:space-between;gap:10px"><span class="lab" id="pl">Free run</span><span class="lab num" id="pr"></span></div>
+          <div class="bar"><i id="pb"></i></div>
+        </div>
+        <canvas id="trace" aria-label="Route trace"></canvas>
+        <div class="row" id="ctl">
+          <button class="btn" id="pause" type="button">Pause</button>
+          <button class="btn stop" id="finish" type="button">Finish</button>
+        </div>
+        <div class="panel" id="confirm" hidden>
+          <span>Finish this run and save it to the log?</span>
+          <div class="row">
+            <button class="btn stop" id="yes" type="button">Finish and save</button>
+            <button class="btn" id="no" type="button">Keep going</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section class="view" id="v-log">
+      <h2>Run log</h2>
+      <div id="logList" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="panel">
+        <span class="lab">Backup</span>
+        <p class="hint">Your log is stored on this phone. Copy a backup now and then, and before changing phones.</p>
+        <div class="row">
+          <button class="btn small" id="copyBk" type="button">Copy backup</button>
+          <button class="btn small" id="restoreBk" type="button">Restore from text</button>
+        </div>
+        <textarea id="bkText" placeholder="Paste backup text here, then tap Restore from text" aria-label="Backup text"></textarea>
+      </div>
+    </section>
+
+    <!-- DEBRIEF -->
+    <section class="view" id="v-debrief">
+      <h2>Debrief</h2>
+      <div id="debrief" style="display:flex;flex-direction:column;gap:14px"></div>
+    </section>
+
+    <!-- TRAIN -->
+    <section class="view" id="v-train">
+      <h2>Training</h2>
+      <div id="train" style="display:flex;flex-direction:column;gap:14px"></div>
+      <p class="hint" style="text-align:center">Vector v<span id="ver"></span></p>
+    </section>
+  </main>
+
+  <nav id="nav">
+    <a href="#run">Run</a><a href="#log">Log</a><a href="#debrief">Debrief</a><a href="#train">Train</a>
+  </nav>
+</div>
+
+<div id="finale" role="dialog" aria-label="Run complete">
+  <canvas id="fx"></canvas>
+  <div class="fin">
+    <span class="lab">Run complete</span>
+    <h1 id="fh"></h1>
+    <p class="hint" id="fs"></p>
+    <div class="stats">
+      <div class="stat"><span class="lab">Km</span><b id="fd">0.00</b></div>
+      <div class="stat"><span class="lab">Time</span><b id="ft">0:00</b></div>
+      <div class="stat"><span class="lab">Avg /km</span><b id="fp">–:––</b></div>
+    </div>
+    <div>
+      <div class="lab" style="margin-bottom:6px">How did it feel?</div>
+      <div class="seg" id="feel">
+        <button type="button" data-v="easy">Easy</button>
+        <button type="button" data-v="good">Good</button>
+        <button type="button" data-v="hard">Hard</button>
+      </div>
+    </div>
+    <button class="btn primary" id="fdone" type="button">See debrief</button>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+(()=>{'use strict';
+const VERSION='0.1';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const mem={};
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);if(v!=null)return JSON.parse(v)}catch(e){} return k in mem?mem[k]:d},
+  set(k,v){mem[k]=v;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  del(k){delete mem[k];try{localStorage.removeItem(k)}catch(e){}}
+};
+const DEF={goal:3,effort:'steady',mode:'free',distKm:3,timeMin:20,ivRun:2,ivWalk:1,ivRounds:6,paceAdj:0,voice:true};
+let S=Object.assign({},DEF,store.get('vector.settings',{}));
+let runs=store.get('vector.runs',[]);
+const save=()=>{store.set('vector.runs',runs);store.set('vector.settings',S)};
+
+/* ---------- helpers ---------- */
+const pad=n=>String(n).padStart(2,'0');
+const fPace=s=>(s==null||!isFinite(s)||s>1800||s<=0)?'–:––':Math.floor(Math.round(s)/60)+':'+pad(Math.round(s)%60);
+const fTime=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+':'+pad(m):m)+':'+pad(s%60)};
+const fKm=(m,d=2)=>(m/1000).toFixed(d);
+const fDate=ts=>new Date(ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+const runPace=r=>r.dist>0?r.dur/r.dist*1000:null;
+const DAY=864e5;
+const dayStart=ts=>{const d=new Date(ts);d.setHours(0,0,0,0);return d.getTime()};
+const weekStart=ts=>{const d=new Date(dayStart(ts));d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()};
+const inWeek=ws=>runs.filter(r=>weekStart(r.start)===ws);
+function hav(a,b,c,d){const R=6371000,p=Math.PI/180,x=Math.sin((c-a)*p/2),y=Math.sin((d-b)*p/2);return 2*R*Math.asin(Math.sqrt(x*x+Math.cos(a*p)*Math.cos(c*p)*y*y))}
+function project(pts,w,h,m){
+  if(!pts.length)return[];
+  let a=1e9,b=-1e9,c=1e9,d=-1e9;for(const p of pts){a=Math.min(a,p[0]);b=Math.max(b,p[0]);c=Math.min(c,p[1]);d=Math.max(d,p[1])}
+  const k=Math.cos((a+b)/2*Math.PI/180),sx=(d-c)*k||1e-6,sy=(b-a)||1e-6,s=Math.min((w-2*m)/sx,(h-2*m)/sy);
+  const ox=(w-sx*s)/2,oy=(h-sy*s)/2;
+  return pts.map(p=>[ox+(p[1]-c)*k*s,h-oy-(p[0]-a)*s]);
+}
+let toastT;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),4200)}
+
+/* ---------- pace recommendation ---------- */
+const EFFORT={easy:{m:1.06,name:'Easy effort',note:'Easy: slow enough to talk in full sentences. Most runs should be this.'},steady:{m:1,name:'Steady effort',note:'Steady: your normal comfortable pace.'},push:{m:.95,name:'Push effort',note:'Push: hard but controlled. Once a week at most.'}};
+const recent=()=>runs.filter(r=>r.dist>=800).slice(-5);
+function basePace(){const r=recent().map(runPace).sort((a,b)=>a-b);return r.length?r[Math.floor(r.length/2)]:450}
+function recPace(){return Math.max(180,Math.round((basePace()*EFFORT[S.effort].m+S.paceAdj)/5)*5)}
+function recSource(){const n=recent().length;return n?`From your last ${n} run${n>1?'s':''}`:'Starter pace'}
+
+/* ---------- reticle ---------- */
+(function(){let t='';for(let i=0;i<72;i++){const a=i*5*Math.PI/180,maj=i%6===0,r1=maj?134:137,r2=143;
+  t+=`<line class="tick${maj?' maj':''}" x1="${(150+r1*Math.sin(a)).toFixed(1)}" y1="${(150-r1*Math.cos(a)).toFixed(1)}" x2="${(150+r2*Math.sin(a)).toFixed(1)}" y2="${(150-r2*Math.cos(a)).toFixed(1)}"/>`}
+  $('#ticks').innerHTML=t})();
+function setReticle(deg,tone){$('#needle').style.transform=`rotate(${deg}deg)`;$('#reticle').style.setProperty('--tone',`var(--${tone})`)}
+
+/* ---------- idle screen ---------- */
+const stepper=(k,label,unit,min,max,step)=>`<div class="stepper"><span>${label}</span><button type="button" data-k="${k}" data-d="${-step}" data-min="${min}" data-max="${max}" aria-label="Less: ${label}">−</button><output id="o-${k}">${S[k]} ${unit}</output><button type="button" data-k="${k}" data-d="${step}" data-min="${min}" data-max="${max}" aria-label="More: ${label}">+</button></div>`;
+function renderIdle(){
+  if(R)return;
+  const p=recPace();
+  $('#paceLabel').textContent='Recommended /km';$('#pace').textContent=fPace(p);
+  $('#state').textContent=EFFORT[S.effort].name;$('#sub').textContent=recSource();$('#effNote').textContent=EFFORT[S.effort].note;
+  setReticle(0,'ice');
+  $$('#effort button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.effort));
+  $$('#mode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.mode));
+  $('#voice').checked=!!S.voice;
+  let h='';
+  if(S.mode==='free')h='<p class="hint">No target. Run as long as you like. The timer and pace guide keep going until you finish.</p>';
+  if(S.mode==='dist')h=stepper('distKm','Target distance','km',1,42,.5)+`<p class="hint">About ${fTime(S.distKm*p)} at the recommended pace.</p>`;
+  if(S.mode==='time')h=stepper('timeMin','Target time','min',5,180,5)+`<p class="hint">About ${(S.timeMin*60/p).toFixed(1)} km at the recommended pace.</p>`;
+  if(S.mode==='iv')h=stepper('ivRun','Run','min',1,20,1)+stepper('ivWalk','Walk','min',1,10,1)+stepper('ivRounds','Rounds','×',1,20,1)+`<p class="hint">${(S.ivRun+S.ivWalk)*S.ivRounds} minutes in total. A beep marks every change. Run and walk intervals are a good way to build the habit.</p>`;
+  $('#cfg').innerHTML=h;
+}
+$('#effort').onclick=e=>{const b=e.target.closest('button');if(b){S.effort=b.dataset.v;save();renderIdle()}};
+$('#mode').onclick=e=>{const b=e.target.closest('button');if(b){S.mode=b.dataset.v;save();renderIdle()}};
+$('#cfg').onclick=e=>{const b=e.target.closest('button[data-k]');if(!b)return;const k=b.dataset.k;
+  S[k]=Math.min(+b.dataset.max,Math.max(+b.dataset.min,+(S[k]+ +b.dataset.d).toFixed(1)));save();renderIdle()};
+$('#slower').onclick=()=>{S.paceAdj+=5;save();renderIdle()};
+$('#faster').onclick=()=>{S.paceAdj-=5;save();renderIdle()};
+$('#voice').onchange=e=>{S.voice=e.target.checked;save()};
+
+/* ---------- sound, voice, wake lock ---------- */
+let ac=null,wl=null;
+function initAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume()}catch(e){}}
+function beep(f=880,n=1){if(!ac)return;try{for(let i=0;i<n;i++){const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+i*.22;o.frequency.value=f;o.connect(g);g.connect(ac.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.25,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.18);o.start(t);o.stop(t+.2)}}catch(e){}}
+function say(t){if(!S.voice)return;try{const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=1.05;speechSynthesis.speak(u)}catch(e){}}
+function buzz(p){try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
+async function lock(){try{if(navigator.wakeLock&&R)wl=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')lock()});
+
+/* ---------- run engine ---------- */
+let R=null,watchId=null,timer=null,simT=null,gotFix=false;
+function setGps(t,s){const c=$('#gps');c.textContent=t;c.dataset.s=s||''}
+function begin(sim){
+  initAudio();$('#gpsmsg').hidden=true;gotFix=false;
+  R={state:'countdown',cd:3,t0:Date.now(),last:Date.now(),el:0,dist:0,pts:[],splits:[],splitT:0,target:recPace(),mode:S.mode,effort:S.effort,
+     cfg:{distKm:S.distKm,timeMin:S.timeMin,ivRun:S.ivRun,ivWalk:S.ivWalk,ivRounds:S.ivRounds},sim,scale:sim?8:1,rej:0,ema:null,cue:-99,gk:'',reached:false,phase:null,saved:Date.now(),simD:0};
+  $('#idle').hidden=true;$('#idle').style.display='none';$('#live').hidden=false;$('#confirm').hidden=true;$('#ctl').hidden=false;$('#pause').textContent='Pause';
+  $('#main').scrollTop=0;
+  if(sim){setGps('Simulation ×8','warn');simT=setInterval(simStep,250)}
+  else{setGps('GPS searching','warn');
+    try{watchId=navigator.geolocation.watchPosition(p=>{gotFix=true;setGps('GPS ±'+Math.round(p.coords.accuracy)+' m',p.coords.accuracy<=20?'ok':'warn');onPos(p.coords.latitude,p.coords.longitude,p.coords.accuracy)},
+      err=>{if(!gotFix&&err.code!==3)gpsFail(err.code===1?'Location permission is off. Allow location for this app in your phone settings, then start again.':'This device or page cannot read GPS right now. In the installed app outdoors it works normally.')},
+      {enableHighAccuracy:true,maximumAge:1000,timeout:20000})}catch(e){gpsFail('This page is not allowed to read GPS. The installed app can.');return}
+  }
+  lock();beep(660);say('Starting in three');
+  timer=setInterval(tick,250);paint();
+}
+function gpsFail(msg){stopEngine();R=null;$('#live').hidden=true;$('#idle').hidden=false;$('#idle').style.display='flex';$('#gpsmsgText').textContent=msg+' You can still try the whole app with a simulated run.';$('#gpsmsg').hidden=false;setGps('GPS unavailable','warn');renderIdle()}
+function stopEngine(){clearInterval(timer);clearInterval(simT);timer=simT=null;if(watchId!=null){try{navigator.geolocation.clearWatch(watchId)}catch(e){}watchId=null}try{wl&&wl.release()}catch(e){}wl=null;store.del('vector.active')}
+function simStep(){
+  if(!R||R.state!=='run')return;
+  const dt=.25*R.scale,walk=R.phase==='walk';
+  const v=walk?1.5:1000/R.target*(.97+.07*Math.sin(R.el/95)+.03*Math.sin(R.el/23));
+  R.simD+=v*dt;const r=420,a=R.simD/r,lat0=24.9575,lon0=121.2410,wob=1+.07*Math.sin(a*2);
+  onPos(lat0+r*wob*Math.sin(a)/111320,lon0+r*wob*(1-Math.cos(a))/(111320*Math.cos(lat0*Math.PI/180)),5);
+}
+function onPos(lat,lon,acc){
+  if(!R||R.state!=='run'||acc>35)return;
+  const p=R.pts[R.pts.length-1];
+  if(!p){R.pts.push([lat,lon,R.el,0]);return}
+  if(R.gap){R.gap=false;R.rej=0;R.pts.push([lat,lon,R.el,R.dist]);return}
+  const d=hav(p[0],p[1],lat,lon),dt=R.el-p[2];
+  if(d<3)return;
+  if(dt>0&&d/dt>9){if(++R.rej<5)return;R.rej=0;R.pts.push([lat,lon,R.el,R.dist]);return}
+  R.rej=0;R.dist+=d;R.pts.push([lat,lon,R.el,R.dist]);
+  while(R.dist>=(R.splits.length+1)*1000){
+    const over=R.dist-(R.splits.length+1)*1000,tAt=R.el-(d>0?over/d*dt:0),sp=tAt-R.splitT;
+    R.splits.push(sp);R.splitT=tAt;beep(990,2);buzz([120,80,120]);
+    say(`${R.splits.length} kilometer${R.splits.length>1?'s':''}. Last one in ${Math.floor(sp/60)} ${pad(Math.round(sp)%60)}.`);
+  }
+}
+function curPace(){
+  const n=R.pts.length;if(n<2)return null;const l=R.pts[n-1];if(R.el-l[2]>12)return null;
+  let i=n-2;while(i>0&&l[2]-R.pts[i][2]<20)i--;
+  const a=R.pts[i],dd=l[3]-a[3],dt=l[2]-a[2];return dd<8||dt<=0?null:dt/dd*1000;
+}
+function ivState(){const c=R.cfg,cyc=(c.ivRun+c.ivWalk)*60,total=cyc*c.ivRounds;
+  if(R.el>=total)return{done:true,total};
+  const i=Math.floor(R.el/cyc),t=R.el-i*cyc,run=t<c.ivRun*60;
+  return{i,run,left:run?c.ivRun*60-t:cyc-t,frac:run?t/(c.ivRun*60):(t-c.ivRun*60)/(c.ivWalk*60),total}}
+function tick(){
+  if(!R)return;const now=Date.now(),dt=(now-R.last)/1000;R.last=now;
+  if(R.state==='countdown'){R.cd-=dt;if(R.cd<=0){R.state='run';R.t0=Date.now();beep(1320);say('Go')}}
+  else if(R.state==='run'){
+    R.el+=dt*R.scale;
+    if(R.mode==='iv'){const s=ivState(),ph=s.done?'done':s.run?'run':'walk';
+      if(ph!==R.phase){if(R.phase!==null){beep(ph==='run'?1320:520,2);buzz(300);say(ph==='run'?'Run':ph==='walk'?'Walk':'Intervals complete. Finish when you are ready.')}R.phase=ph;if(ph==='done')R.reached=true}}
+    if(!R.reached&&((R.mode==='dist'&&R.dist>=R.cfg.distKm*1000)||(R.mode==='time'&&R.el>=R.cfg.timeMin*60))){R.reached=true;beep(1320,3);buzz([200,100,200]);say('Target reached. Finish when you are ready.')}
+    if(now-R.saved>8000){R.saved=now;store.set('vector.active',record())}
+  }
+  paint();
+}
+function paint(){
+  if(!R)return;
+  $('#lt').textContent=fTime(R.el);$('#ld').textContent=fKm(R.dist);$('#la').textContent=R.dist>50?fPace(R.el/R.dist*1000):'–:––';
+  if(R.state==='countdown'){$('#paceLabel').textContent='Get ready';$('#pace').textContent=Math.max(1,Math.ceil(R.cd));$('#state').textContent='';$('#sub').textContent='Target '+fPace(R.target)+' /km';setReticle(0,'ice')}
+  else{
+    const p=curPace();R.ema=p==null?null:(R.ema==null?p:R.ema*.65+p*.35);
+    let k,label,tone,deg=0;
+    if(R.state==='pause'){k='pause';label='Paused';tone='ice'}
+    else if(R.phase==='walk'){k='walk';label='Walk and recover';tone='ice'}
+    else if(R.ema==null){k='wait';label=R.dist<30?'Reading your pace':'Standing still';tone='ice'}
+    else{const diff=R.ema-R.target;deg=Math.max(-125,Math.min(125,-diff*1.2));
+      if(Math.abs(diff)<=10){k='on';label='On pace';tone='mint'}
+      else if(diff<0){k='fast';label='Ease off';tone='amber'}
+      else{k='slow';label='Pick it up';tone='ice'}
+      if(k!==R.gk||R.el-R.cue>90){if(R.el-R.cue>45&&(k==='fast'||k==='slow')){R.cue=R.el;say(k==='fast'?'Ease off a little.':'Pick it up a little.')}}
+    }
+    R.gk=k;
+    $('#paceLabel').textContent='Current /km';$('#pace').textContent=R.phase==='walk'||R.state==='pause'?fPace(R.ema):fPace(R.ema);
+    $('#state').textContent=label;$('#sub').textContent='Target '+fPace(R.target)+' /km';setReticle(deg,tone);
+  }
+  let pl,pr='',f;
+  if(R.mode==='dist'){pl='Distance target';pr=fKm(R.dist)+' / '+R.cfg.distKm+' km';f=R.dist/(R.cfg.distKm*1000)}
+  else if(R.mode==='time'){pl='Time target';pr=fTime(R.el)+' / '+R.cfg.timeMin+':00';f=R.el/(R.cfg.timeMin*60)}
+  else if(R.mode==='iv'){const s=ivState();if(s.done){pl='Intervals complete';f=1}else{pl=(s.run?'Run ':'Walk ')+(s.i+1)+' of '+R.cfg.ivRounds;pr=fTime(s.left)+' left';f=s.frac}}
+  else{pl='Next km marker';pr=Math.round(1000-R.dist%1000)+' m';f=(R.dist%1000)/1000}
+  if(R.reached&&R.mode!=='iv')pl='Target reached';
+  $('#pl').textContent=pl;$('#pr').textContent=pr;$('#pb').style.width=Math.min(100,f*100)+'%';
+  drawTrace();
+}
+function drawTrace(){
+  const c=$('#trace'),dpr=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(!w)return;
+  if(c.width!==Math.round(w*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr)}
+  const x=c.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);
+  x.strokeStyle='rgba(127,233,255,.07)';x.lineWidth=1;x.beginPath();for(let i=20;i<w;i+=20){x.moveTo(i,0);x.lineTo(i,h)}for(let j=20;j<h;j+=20){x.moveTo(0,j);x.lineTo(w,j)}x.stroke();
+  const q=project(R.pts,w,h,18);
+  if(q.length<2){x.fillStyle='#8696b8';x.font='12px Chakra Petch, sans-serif';x.textAlign='center';x.fillText(R.sim?'Simulated route appears here':'Your route appears here as you move',w/2,h/2);return}
+  x.strokeStyle='#7fe9ff';x.lineWidth=2.5;x.lineJoin='round';x.shadowColor='#7fe9ff';x.shadowBlur=8;x.beginPath();q.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.stroke();
+  const e=q[q.length-1];x.fillStyle='#fff';x.beginPath();x.arc(e[0],e[1],4,0,7);x.fill();x.shadowBlur=0;
+}
+function record(){
+  const n=R.pts.length,step=Math.max(1,Math.ceil(n/500)),pts=R.pts.filter((p,i)=>i%step===0||i===n-1).map(p=>[+p[0].toFixed(5),+p[1].toFixed(5),Math.round(p[2]),Math.round(p[3])]);
+  return{id:R.t0,start:R.t0,dur:Math.round(R.el),dist:Math.round(R.dist),pts,splits:R.splits.map(Math.round),target:R.target,mode:R.mode,effort:R.effort,sim:R.sim||undefined,feel:null};
+}
+$('#start').onclick=()=>{if(!('geolocation' in navigator)){initAudio();gpsFailIdle('This browser has no GPS access.');return}begin(false)};
+function gpsFailIdle(m){$('#gpsmsgText').textContent=m+' You can still try the whole app with a simulated run.';$('#gpsmsg').hidden=false}
+$('#simBtn').onclick=()=>begin(true);
+$('#pause').onclick=()=>{if(!R||R.state==='countdown')return;R.state=R.state==='run'?'pause':'run';if(R.state==='run')R.gap=true;R.last=Date.now();$('#pause').textContent=R.state==='pause'?'Resume':'Pause';paint()};
+$('#finish').onclick=()=>{$('#confirm').hidden=false;$('#ctl').hidden=true};
+$('#no').onclick=()=>{$('#confirm').hidden=true;$('#ctl').hidden=false};
+$('#yes').onclick=()=>{
+  const run=record();stopEngine();R=null;
+  $('#live').hidden=true;$('#idle').hidden=false;$('#idle').style.display='flex';setGps('GPS standby','');
+  if(run.dist<50){toast('That run was under 50 m, so it was not saved.');renderIdle();return}
+  runs.push(run);save();renderIdle();finale(run);
+};
+
+/* ---------- finale ---------- */
+let fxRaf=0,lastRun=null;
+function headline(run){
+  const prev=runs.filter(r=>r.id!==run.id);
+  if(!prev.length)return['First run logged','Every habit starts with run number one. This is yours.'];
+  if(run.dist>Math.max(...prev.map(r=>r.dist)))return['New longest run',fKm(run.dist)+' km is the farthest you have gone.'];
+  const pp=prev.filter(r=>r.dist>=1000).map(runPace);
+  if(run.dist>=1000&&pp.length&&runPace(run)<Math.min(...pp))return['New fastest pace',fPace(runPace(run))+' /km beats every run in your log.'];
+  const wk=inWeek(weekStart(Date.now())).length;
+  if(wk===S.goal)return['Weekly goal reached',wk+' of '+S.goal+' runs done this week.'];
+  const L=[['Orbit complete','Another lap around the habit. Run '+runs.length+' is in the log.'],['Trajectory holding','Showing up is the hard part, and you did it again.'],['Signal strong',runs.length+' runs logged. Consistency beats intensity.'],['Systems nominal','Legs, lungs and willpower all reported for duty.']];
+  return L[runs.length%L.length];
+}
+function finale(run){
+  lastRun=run;const[h,s]=headline(run);
+  $('#fh').textContent=h;$('#fs').textContent=s;$$('#feel button').forEach(b=>b.setAttribute('aria-pressed','false'));
+  $('#finale').classList.add('on');beep(880,3);say(h+'. '+fKm(run.dist,1)+' kilometers.');buzz([100,60,100,60,300]);
+  const c=$('#fx'),dpr=window.devicePixelRatio||1,w=c.clientWidth,H=c.clientHeight;c.width=w*dpr;c.height=H*dpr;
+  const x=c.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);
+  const rh=Math.max(180,H*.5),q=project(run.pts,w,rh,36).map(p=>[p[0],p[1]+Math.max(16,H*.06)]);
+  const cx=w/2,cy=rh/2+H*.06;
+  const stars=[...Array(150)].map(()=>({a:Math.random()*6.283,r:10+Math.random()*Math.max(w,H)*.7,v:.4+Math.random()*1.6,s:Math.random()*1.4+.3}));
+  const sparks=[];let burst=false;
+  const kms=[];{let next=1000;run.pts.forEach((p,i)=>{if(p[3]>=next&&q[i]){kms.push(i);next+=1000}})}
+  const still=matchMedia('(prefers-reduced-motion:reduce)').matches,t0=performance.now();
+  const count=(t)=>{const k=Math.min(1,Math.max(0,(t-900)/1800)),e=1-Math.pow(1-k,3);$('#fd').textContent=fKm(run.dist*e);$('#ft').textContent=fTime(run.dur*e);$('#fp').textContent=k<1?'–:––':fPace(runPace(run))};
+  cancelAnimationFrame(fxRaf);
+  (function frame(now){
+    const t=still?6000:now-t0;x.clearRect(0,0,w,H);
+    const warp=Math.max(0,1-t/1100);
+    for(const st of stars){const len=warp*warp*70*st.v;st.r+=st.v*(.08+warp*16);if(st.r>Math.max(w,H)*.8)st.r=10;
+      const c1=Math.cos(st.a),s1=Math.sin(st.a);x.strokeStyle=`rgba(190,235,255,${.25+.5*Math.min(1,st.r/200)*(.4+st.s/2)})`;x.lineWidth=st.s;
+      x.beginPath();x.moveTo(cx+c1*st.r,cy+s1*st.r);x.lineTo(cx+c1*(st.r+len+st.s),cy+s1*(st.r+len+st.s));x.stroke()}
+    const k=Math.min(1,Math.max(0,(t-700)/2400)),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    if(q.length>1){
+      const n=Math.max(2,Math.ceil(q.length*e));
+      x.strokeStyle='#7fe9ff';x.lineWidth=3;x.lineJoin='round';x.lineCap='round';x.shadowColor='#7fe9ff';x.shadowBlur=14;
+      x.beginPath();for(let i=0;i<n;i++)i?x.lineTo(q[i][0],q[i][1]):x.moveTo(q[i][0],q[i][1]);x.stroke();x.shadowBlur=0;
+      x.fillStyle='#6dffb0';for(const i of kms)if(i<n){const p=q[i];x.save();x.translate(p[0],p[1]);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
+      const hd=q[n-1];x.fillStyle='#fff';x.beginPath();x.arc(hd[0],hd[1],5,0,7);x.fill();
+      if(k>=1){const end=q[q.length-1],tt=(t-3100)/1000;
+        if(!burst){burst=true;for(let i=0;i<46;i++){const a=Math.random()*6.283,v=1+Math.random()*4;sparks.push({x:end[0],y:end[1],vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1})}}
+        for(let i=0;i<3;i++){const rr=((tt*.55+i/3)%1);x.strokeStyle=`rgba(109,255,176,${(1-rr)*.7})`;x.lineWidth=2;x.beginPath();x.arc(end[0],end[1],8+rr*90,0,7);x.stroke()}
+      }
+    }else{x.strokeStyle='#7fe9ff';x.lineWidth=3;x.shadowColor='#7fe9ff';x.shadowBlur=14;x.beginPath();x.arc(cx,cy,70,-1.57,-1.57+6.283*e);x.stroke();x.shadowBlur=0}
+    for(const sp of sparks){sp.x+=sp.vx;sp.y+=sp.vy;sp.vy+=.04;sp.l-=.014;if(sp.l>0){x.fillStyle=`rgba(255,179,71,${sp.l})`;x.fillRect(sp.x,sp.y,2.5,2.5)}}
+    count(t);
+    if(!still&&$('#finale').classList.contains('on'))fxRaf=requestAnimationFrame(frame);
+  })(performance.now());
+}
+$('#feel').onclick=e=>{const b=e.target.closest('button');if(!b||!lastRun)return;lastRun.feel=b.dataset.v;save();$$('#feel button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
+$('#fdone').onclick=()=>{$('#finale').classList.remove('on');cancelAnimationFrame(fxRaf);location.hash='debrief';route()};
+
+/* ---------- log ---------- */
+let openId=null,delId=null;
+function mini(r){const q=project(r.pts||[],54,54,7);return`<svg class="mini" viewBox="0 0 54 54" aria-hidden="true">${q.length>1?`<polyline fill="none" stroke="#7fe9ff" stroke-width="1.6" stroke-linejoin="round" points="${q.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`:''}</svg>`}
+function runNote(r){
+  const sp=r.splits||[];if(sp.length<2)return'Run at least 2 km to get a pacing breakdown by kilometer.';
+  const first=sp[0],last=sp[sp.length-1],d=last-first;
+  if(d>Math.max(12,first*.04))return`You slowed by ${Math.round(d)} s/km from the first km to the last. Starting 10 to 15 s/km slower usually makes the whole run feel better.`;
+  if(d<-8)return`Negative split: your last km was ${Math.round(-d)} s faster than your first. That is controlled pacing.`;
+  return'Even pacing from start to finish. This is how habit runs should feel.';
+}
+function renderLog(){
+  const L=$('#logList');
+  if(!runs.length){L.innerHTML=`<div class="panel mark"><p>No runs yet. Your first run will appear here with its route, splits and pacing notes.</p><p class="hint">Want to see how the log and debrief look when they are full?</p><button class="btn small" id="sample" type="button">Load sample runs</button></div>`;return}
+  const hasSample=runs.some(r=>r.sample);
+  L.innerHTML=(hasSample?`<div class="panel warn"><p class="hint">Runs tagged SAMPLE are made-up examples, not yours.</p><button class="btn small" id="clearSample" type="button">Remove sample runs</button></div>`:'')+
+  runs.slice().reverse().map(r=>{
+    const open=r.id===openId,sp=r.splits||[],mx=Math.max(...sp,1),mn=Math.min(...sp);
+    return`<article class="run"><button type="button" data-id="${r.id}" aria-expanded="${open}">${mini(r)}
+      <span><span class="when">${fDate(r.start)}${r.sample?'<span class="tag">SAMPLE</span>':''}${r.sim?'<span class="tag">SIMULATED</span>':''}</span><br><span class="big">${fKm(r.dist)} km</span></span>
+      <span class="meta">${fTime(r.dur)}<br>${fPace(runPace(r))} /km</span></button>
+      ${open?`<div class="detail">
+        ${sp.length?`<div><div class="lab" style="margin-bottom:8px">Splits per km</div>${sp.map((s,i)=>`<div class="split${s===mn&&sp.length>1?' best':''}"><span>${i+1} km</span><div class="bar"><i style="width:${(s/mx*100).toFixed(0)}%"></i></div><span style="text-align:right">${fPace(s)}</span></div>`).join('')}</div>`:''}
+        <p class="hint">${runNote(r)}</p>
+        <p class="hint">Target was ${fPace(r.target)} /km${r.feel?' · Felt '+r.feel:''}${r.mode&&r.mode!=='free'?' · '+({dist:'Distance run',time:'Timed run',iv:'Intervals'})[r.mode]:''}</p>
+        ${delId===r.id?`<div class="row"><button class="btn small stop" data-del="${r.id}" type="button">Delete for good</button><button class="btn small" data-keep type="button">Keep</button></div>`:`<button class="btn small" data-ask="${r.id}" type="button">Delete this run</button>`}
+      </div>`:''}</article>`}).join('');
+}
+$('#logList').onclick=e=>{
+  const t=e.target.closest('button');if(!t)return;
+  if(t.id==='sample'){loadSamples();toast('Sample runs loaded. They are tagged SAMPLE.')}
+  else if(t.id==='clearSample'){runs=runs.filter(r=>!r.sample);save()}
+  else if(t.dataset.id){openId=openId==t.dataset.id?null:+t.dataset.id;delId=null}
+  else if(t.dataset.ask)delId=+t.dataset.ask;
+  else if('keep' in t.dataset)delId=null;
+  else if(t.dataset.del){runs=runs.filter(r=>r.id!=t.dataset.del);save();delId=openId=null}
+  renderLog();
+};
+function loadSamples(){
+  const now=Date.now(),plan=[[19,2.1,472],[17,2.4,466],[14,3.0,463],[12,2.6,455],[9,3.2,451],[6,3.5,447],[3,4.0,442],[1,3.1,437]];
+  plan.forEach(([ago,km,pace],i)=>{
+    const dist=km*1000,dur=Math.round(km*pace),start=now-ago*DAY-i*3600e3,rad=dist/6.283,pts=[],splits=[];
+    for(let k=0;k<Math.floor(km);k++)splits.push(Math.round(pace*(.955+.03*k+(i%3===0?-.02*k:0))));
+    for(let j=0;j<=60;j++){const a=j/60*6.283,wb=1+.2*Math.sin(a*(2+i%3)+i);pts.push([+(24.9575+rad*wb*Math.sin(a)/111320).toFixed(5),+(121.241+rad*wb*(1-Math.cos(a))/101000).toFixed(5),Math.round(dur*j/60),Math.round(dist*j/60)])}
+    runs.push({id:start,start,dur,dist,pts,splits,target:pace,mode:'free',effort:'steady',feel:['good','good','hard','easy'][i%4],sample:true});
+  });
+  runs.sort((a,b)=>a.start-b.start);save();
+}
+$('#copyBk').onclick=async()=>{const txt=JSON.stringify({app:'vector',v:1,runs,settings:S});
+  try{await navigator.clipboard.writeText(txt);toast('Backup copied. Paste it somewhere safe, like a note to yourself.')}catch(e){$('#bkText').value=txt;toast('Copy was blocked. The backup text is in the box, select and copy it.')}};
+$('#restoreBk').onclick=()=>{try{const o=JSON.parse($('#bkText').value);if(!o||!Array.isArray(o.runs))throw 0;
+  const ids=new Set(runs.map(r=>r.id));let n=0;o.runs.forEach(r=>{if(r&&r.id&&!ids.has(r.id)&&isFinite(r.dist)&&isFinite(r.dur)){runs.push(r);n++}});
+  runs.sort((a,b)=>a.start-b.start);save();$('#bkText').value='';renderLog();toast(n+' run'+(n===1?'':'s')+' restored.')}catch(e){toast('That text is not a Vector backup. Paste the full text from Copy backup.')}};
+
+/* ---------- debrief ---------- */
+function insights(){
+  const out=[],now=Date.now();if(!runs.length)return out;
+  const last=runs[runs.length-1],gap=Math.floor((dayStart(now)-dayStart(last.start))/DAY);
+  const ws=weekStart(now),tw=inWeek(ws),lw=inWeek(ws-7*DAY),km=a=>a.reduce((s,r)=>s+r.dist,0)/1000;
+  const left=S.goal-tw.length,daysLeft=7-((new Date().getDay()+6)%7);
+  if(left<=0)out.push({t:'good',h:'Weekly goal done',p:`${tw.length} runs this week against a goal of ${S.goal}. Anything more is a bonus, keep it easy.`});
+  else out.push({t:left>daysLeft?'warn':'info',h:`${left} more run${left>1?'s':''} to hit this week's goal`,p:`${daysLeft} day${daysLeft>1?'s':''} left in the week, counting today. Short runs count.`});
+  if(gap>=4)out.push({t:'warn',h:`${gap} days since your last run`,p:'A short 15 minute easy run restarts the habit better than waiting for a perfect day.'});
+  let streak=1;for(let i=runs.length-1;i>0;i--){const d=(dayStart(runs[i].start)-dayStart(runs[i-1].start))/DAY;if(d===1)streak++;else if(d>1)break}
+  if(streak>=3&&gap<=1)out.push({t:'warn',h:`${streak} days in a row`,p:'Take a rest day or do the strength routine. Fitness is built while you recover.'});
+  if(km(lw)>0&&km(tw)>km(lw)*1.3)out.push({t:'warn',h:`Distance is up ${Math.round((km(tw)/km(lw)-1)*100)}% on last week`,p:'Increases near 10% a week are kinder to shins and knees. Make the next run short and easy.'});
+  const sp=last.splits||[];if(sp.length>=2)out.push({t:sp[sp.length-1]-sp[0]>Math.max(12,sp[0]*.04)?'warn':'good',h:'Pacing in your last run',p:runNote(last)});
+  const ok=runs.filter(r=>r.dist>=1000);if(ok.length>=6){const a=ok.slice(-3).reduce((s,r)=>s+runPace(r),0)/3,b=ok.slice(-6,-3).reduce((s,r)=>s+runPace(r),0)/3,d=Math.round(b-a);
+    if(d>=4)out.push({t:'good',h:`${d} s/km faster than three runs ago`,p:`Your last three runs average ${fPace(a)} /km. The recommended pace has moved with you.`});
+    else if(d<=-8)out.push({t:'info',h:'Recent runs are a little slower',p:'That is normal with heat, poor sleep or tired legs. Keep the effort easy and let pace come back on its own.'})}
+  if(last.feel==='hard')out.push({t:'info',h:'Last run felt hard',p:'Set the next one to Easy effort. Most of your running should feel comfortable.'});
+  return out;
+}
+function nextRun(){
+  if(!runs.length)return'Start with intervals: run 2 minutes, walk 1 minute, 6 rounds. It is 18 minutes and it works.';
+  const last=runs[runs.length-1],gap=Math.floor((dayStart(Date.now())-dayStart(last.start))/DAY),longest=Math.max(...runs.map(r=>r.dist));
+  if(gap===0)return'You ran today. Do the cool-down stretches and come back tomorrow or the day after.';
+  if(last.feel==='hard'||gap>=4)return`Easy effort, ${Math.max(1.5,(last.dist/1000*.8)).toFixed(1)} km. Finish feeling like you could do more.`;
+  if(inWeek(weekStart(Date.now())).length===S.goal-1)return`Last run of the week: try ${(longest/1000*1.1).toFixed(1)} km at Easy effort, about 10% past your longest.`;
+  return`Steady effort, around ${(last.dist/1000).toFixed(1)} km at ${fPace(recPace())} /km.`;
+}
+function renderDebrief(){
+  const now=Date.now(),ws=weekStart(now),tw=inWeek(ws),f=Math.min(1,tw.length/S.goal),C=2*Math.PI*40;
+  let wkStreak=0;for(let w=tw.length>=S.goal?ws:ws-7*DAY;inWeek(w).length>=S.goal;w-=7*DAY)wkStreak++;
+  const tot=runs.reduce((s,r)=>s+r.dist,0);
+  let h=`<div class="panel mark"><div class="goal">
+    <svg viewBox="0 0 96 96" role="img" aria-label="${tw.length} of ${S.goal} runs this week"><circle cx="48" cy="48" r="40" fill="none" stroke="#1f2e4b" stroke-width="7"/><circle cx="48" cy="48" r="40" fill="none" stroke="${f>=1?'#6dffb0':'#7fe9ff'}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C*f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 48 48)"/><text x="48" y="55" text-anchor="middle" fill="#dce8ff" style="font:700 22px Oxanium,monospace">${tw.length}/${S.goal}</text></svg>
+    <div style="display:flex;flex-direction:column;gap:8px"><span class="lab">Runs this week</span>
+      <div class="stepper" style="grid-template-columns:1fr 40px auto 40px"><span class="hint">Weekly goal</span><button type="button" data-g="-1" aria-label="Lower weekly goal">−</button><output>${S.goal}</output><button type="button" data-g="1" aria-label="Raise weekly goal">+</button></div>
+      <span class="hint">${wkStreak?wkStreak+' week'+(wkStreak>1?'s':'')+' in a row at goal':'Hit your goal to start a weekly streak'}</span></div></div></div>
+  <div class="stats"><div class="stat"><span class="lab">Runs</span><b>${runs.length}</b></div><div class="stat"><span class="lab">Total km</span><b>${(tot/1000).toFixed(1)}</b></div><div class="stat"><span class="lab">Longest</span><b>${runs.length?fKm(Math.max(...runs.map(r=>r.dist)),1):'0.0'}</b></div></div>
+  <div class="panel"><span class="lab">Next run</span><p>${nextRun()}</p></div>`;
+  const ins=insights();
+  if(ins.length)h+=`<div class="panel"><span class="lab">What your log says</span>${ins.map(i=>`<div class="ins" data-t="${i.t}"><div><b>${i.h}</b><span>${i.p}</span></div></div>`).join('')}</div>`;
+  // weekly distance, last 8 weeks
+  const wk=[];for(let i=7;i>=0;i--){const w=ws-i*7*DAY;wk.push({w,km:inWeek(w).reduce((s,r)=>s+r.dist,0)/1000})}
+  const mx=Math.max(1,...wk.map(x=>x.km)),top=Math.ceil(mx/2)*2;
+  h+=`<div class="panel"><span class="lab">Distance per week, km</span><svg class="chart" viewBox="0 0 320 150" role="img" aria-label="Weekly distance for the last 8 weeks">
+    ${[0,.5,1].map(g=>`<line x1="26" x2="316" y1="${118-g*96}" y2="${118-g*96}" stroke="#1f2e4b"/><text x="22" y="${121-g*96}" text-anchor="end">${(top*g).toFixed(0)}</text>`).join('')}
+    ${wk.map((x,i)=>{const bh=x.km/top*96,bx=32+i*36,cur=i===7,d=new Date(x.w);return`<rect x="${bx}" y="${118-bh}" width="24" height="${Math.max(bh,x.km?2:0)}" rx="2" fill="${cur?'#7fe9ff':'#3d6f95'}"/>${x.km?`<text x="${bx+12}" y="${112-bh}" text-anchor="middle" fill="${cur?'#dce8ff':'#8696b8'}">${x.km.toFixed(1)}</text>`:''}<text x="${bx+12}" y="134" text-anchor="middle">${cur?'now':(d.getMonth()+1)+'/'+d.getDate()}</text>`}).join('')}
+  </svg></div>`;
+  const ok=runs.filter(r=>r.dist>=800).slice(-10);
+  if(ok.length>=2){const ps=ok.map(runPace),lo=Math.min(...ps),hi=Math.max(...ps),span=Math.max(10,hi-lo),X=i=>40+i*(266/(ps.length-1)),Y=p=>24+(p-lo)/span*76;
+    const line=ps.map((p,i)=>X(i).toFixed(1)+','+Y(p).toFixed(1)).join(' '),li=ps.length-1;
+    h+=`<div class="panel"><span class="lab">Average pace, last ${ps.length} runs (faster is higher)</span><svg class="chart" viewBox="0 0 320 124" role="img" aria-label="Pace trend">
+      <line x1="40" x2="306" y1="24" y2="24" stroke="#1f2e4b"/><line x1="40" x2="306" y1="100" y2="100" stroke="#1f2e4b"/>
+      <text x="36" y="27" text-anchor="end">${fPace(lo)}</text><text x="36" y="103" text-anchor="end">${fPace(lo+span)}</text>
+      <polygon points="40,112 ${line} ${X(li).toFixed(1)},112" fill="rgba(127,233,255,.10)"/><polyline points="${line}" fill="none" stroke="#7fe9ff" stroke-width="2" stroke-linejoin="round"/>
+      ${ps.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(p).toFixed(1)}" r="${i===li?4.5:2.2}" fill="${i===li?'#fff':'#7fe9ff'}"/>`).join('')}
+      <text x="${Math.min(X(li),296).toFixed(1)}" y="${(Y(ps[li])-9).toFixed(1)}" text-anchor="end" fill="#dce8ff">${fPace(ps[li])}</text></svg></div>`}
+  else h+=`<div class="panel"><span class="lab">Pace trend</span><p class="hint">Appears after two runs of 800 m or more.</p></div>`;
+  $('#debrief').innerHTML=h;
+}
+$('#debrief').onclick=e=>{const b=e.target.closest('button[data-g]');if(b){S.goal=Math.min(7,Math.max(1,S.goal+ +b.dataset.g));save();renderDebrief()}};
+
+/* ---------- train ---------- */
+const PLAN=[
+ {id:'warm',title:'Warm-up',when:'5 minutes before every run',items:[['Brisk walk','2 min','Arms swinging, raise your heart rate gently'],['Leg swings','10 / side','Hold a wall, swing forward and back from the hip'],['Walking lunges','10 / side','Long step, back knee toward the ground'],['High knees','2 × 20 s','Light and quick on the balls of your feet'],['Ankle circles','10 / side','Both directions']]},
+ {id:'str',title:'Strength',when:'Two non-running days a week, about 15 minutes',items:[['Squats','3 × 12','Hips back, knees track over toes'],['Reverse lunges','3 × 10 / side','Step back, keep your front shin vertical'],['Calf raises','3 × 15','Slow up, slower down. Protects shins and Achilles'],['Glute bridges','3 × 12','Squeeze at the top for one second'],['Plank','3 × 30 s','Straight line from head to heels'],['Side plank','2 × 20 s / side','Hips high, do not let them sag']]},
+ {id:'cool',title:'Cool-down',when:'5 minutes after every run',items:[['Easy walk','3 min','Let your breathing settle before you stop'],['Calf stretch','30 s / side','Back heel down, lean into a wall'],['Hamstring stretch','30 s / side','Hinge at the hips with a flat back'],['Quad stretch','30 s / side','Heel to seat, knees together'],['Hip flexor stretch','30 s / side','Half kneeling, tuck your pelvis under']]}
+];
+const HABITS=['Run most of your runs at a pace where you can speak in full sentences. Easy running is what builds endurance.','Raise your weekly distance by about 10% at most. Sudden jumps are the usual cause of shin and knee trouble.','Leave a rest or strength day after any run that felt hard.','Sleep 7 to 9 hours. That is when training turns into fitness.','Drink water through the day, and more in hot or humid weather. Slow down in the heat instead of chasing pace.','Soreness that fades as you warm up is normal. Pain that sharpens, chest pain or dizziness means stop, and see a doctor if it does not settle.'];
+function todayPick(){
+  if(!runs.length)return['warm','First run day','Do the warm-up, then start an Intervals run. Finish with the cool-down.'];
+  const gap=Math.floor((dayStart(Date.now())-dayStart(runs[runs.length-1].start))/DAY);
+  if(gap===0)return['cool','You ran today','Do the cool-down stretches now while your muscles are warm.'];
+  if(gap===1)return['str','Strength day','You ran yesterday. Fifteen minutes of strength work makes the next run easier.'];
+  return['warm','Run day','It has been '+gap+' days. Warm up, then head out.'];
+}
+function renderTrain(){
+  const key='vector.done.'+dayStart(Date.now()),done=store.get(key,{}),[pick,th,tp]=todayPick();
+  $('#train').innerHTML=`<div class="panel mark"><span class="lab">Today</span><p><b>${th}.</b> ${tp}</p></div>`+
+   PLAN.slice().sort((a,b)=>(b.id===pick)-(a.id===pick)).map(s=>`<div class="panel"><div><h2 style="color:var(--text)">${s.title}${s.id===pick?' <span class="tag" style="color:var(--mint);border-color:rgba(109,255,176,.45)">TODAY</span>':''}</h2><span class="hint">${s.when}</span></div>
+     <div>${s.items.map((x,i)=>`<button class="ex" type="button" data-e="${s.id+i}" aria-pressed="${!!done[s.id+i]}"><span class="box">${done[s.id+i]?'✓':''}</span><span><span class="nm">${x[0]}</span><span class="cue">${x[2]}</span></span><span class="dose">${x[1]}</span></button>`).join('')}</div></div>`).join('')+
+   `<div class="panel"><h2 style="color:var(--text)">Healthy running habits</h2><ul class="plain">${HABITS.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
+  $('#ver').textContent=VERSION;
+}
+$('#train').onclick=e=>{const b=e.target.closest('.ex');if(!b)return;const key='vector.done.'+dayStart(Date.now()),d=store.get(key,{});d[b.dataset.e]=!d[b.dataset.e];store.set(key,d);renderTrain()};
+
+/* ---------- routing and boot ---------- */
+const VIEWS=['run','log','debrief','train'];
+function route(){
+  let v=location.hash.slice(1);if(!VIEWS.includes(v))v='run';
+  VIEWS.forEach(n=>$('#v-'+n).classList.toggle('on',n===v));
+  $$('#nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+v));
+  if(v==='run'){renderIdle();if(R)paint()}if(v==='log')renderLog();if(v==='debrief')renderDebrief();if(v==='train')renderTrain();
+  $('#main').scrollTop=0;
+}
+addEventListener('hashchange',route);
+const lost=store.get('vector.active',null);
+if(lost&&lost.dist>=50&&!runs.some(r=>r.id===lost.id)){runs.push(lost);save();setTimeout(()=>toast('An unfinished run was recovered and saved to your log.'),600)}
+store.del('vector.active');
+$('#live').hidden=true;
+route();
+if('serviceWorker' in navigator&&location.protocol==='https:'){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
+})();
+</script>
+</body>
+</html>
