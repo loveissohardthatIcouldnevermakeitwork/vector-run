@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Vector">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>Vector Run Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
@@ -207,8 +208,34 @@ h2.sub{margin-top:8px}
 .lp .val small{display:block;font:500 11.5px var(--f-display);color:var(--dim)}
 .lp .val small.up{color:var(--mint)}
 .spark{width:84px;height:26px;display:block}
+/* v0.3: calendar and other activities */
+.calh{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px}
+.calh button{height:40px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);font:600 20px/1 var(--f-display)}
+.calh button:disabled{opacity:.3}
+.calt{text-align:center;font:700 14px var(--f-display);letter-spacing:.16em;text-transform:uppercase}
+.calg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calg .wd{text-align:center;font:600 10px var(--f-display);letter-spacing:.1em;color:var(--dim);padding-bottom:2px}
+.cd{aspect-ratio:1;min-width:0;padding:0;border:1px solid rgba(31,46,75,.6);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--dim);font:500 13px var(--f-display);font-variant-numeric:tabular-nums}
+.cd.on{background:var(--panel-2);border-color:var(--line);color:var(--text)}
+.cd.today{color:var(--ice);font-weight:700;border-color:var(--dim)}
+.cd.sel{border-color:var(--ice);box-shadow:inset 0 0 0 1px var(--ice),0 0 12px rgba(127,233,255,.25)}
+.cd:disabled{opacity:.28;border-color:transparent}
+.cd .mk{display:flex;gap:2px;height:8px;align-items:center}
+.cd .mk svg,.lg svg{width:8px;height:8px;fill:var(--ice);flex:none}
+.lg{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.lg span{display:inline-flex;align-items:center;gap:6px}
+@keyframes pop{0%{transform:scale(.5);opacity:.3}55%{transform:scale(1.22)}100%{transform:scale(1)}}
+.cd.pop{animation:pop .7s ease-out}
+.cd.pop .mk svg{filter:drop-shadow(0 0 4px var(--ice))}
+.btn.add{border-color:rgba(127,233,255,.5);color:var(--ice)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{min-height:40px;padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);font:600 12px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.chips button[aria-pressed=true]{color:var(--ice);border-color:var(--ice);box-shadow:inset 0 -2px 0 var(--ice)}
+input[type=text]{width:100%;height:46px;background:var(--void);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:0 12px;font:500 16px var(--f-body)}
+input[type=text]::placeholder{color:var(--dim)}
+.tag.n{color:var(--dim);border-color:var(--line)}
 [hidden]{display:none!important}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -300,11 +327,21 @@ h2.sub{margin-top:8px}
     <!-- LOG -->
     <section class="view" id="v-log">
       <h2>Log</h2>
-      <div class="seg" id="logFilter"><button type="button" data-v="all">All</button><button type="button" data-v="r">Runs</button><button type="button" data-v="w">Workouts</button></div>
+      <div class="panel mark" id="cal"></div>
+      <div id="dayBox" style="display:flex;flex-direction:column;gap:10px"></div>
+      <h2 class="sub">All entries</h2>
+      <div class="seg" id="logFilter"><button type="button" data-v="all">All</button><button type="button" data-v="r">Runs</button><button type="button" data-v="w">Workouts</button><button type="button" data-v="a">Other</button></div>
       <div id="logList" style="display:flex;flex-direction:column;gap:10px"></div>
       <div class="panel">
+        <span class="lab">Log by chat</span>
+        <p class="hint">Tell Claude what you did, for example: I played badminton for an hour. It shows up here about a minute later, the next time the app is open with internet.</p>
+        <button class="btn small" id="syncNow" type="button">Check for new entries</button>
+        <p class="hint" id="syncInfo"></p>
+        <p class="hint">Entries added by chat are kept in the app's GitHub repository, which anyone can view. Everything you record in the app itself stays on this phone.</p>
+      </div>
+      <div class="panel">
         <span class="lab">Backup</span>
-        <p class="hint">Your runs and workouts are stored on this phone. Copy a backup now and then, and before changing phones.</p>
+        <p class="hint">Your runs, workouts and activities are stored on this phone. Copy a backup now and then, and before changing phones.</p>
         <div class="row">
           <button class="btn small" id="copyBk" type="button">Copy backup</button>
           <button class="btn small" id="restoreBk" type="button">Restore from text</button>
@@ -324,7 +361,7 @@ h2.sub{margin-top:8px}
     <section class="view" id="v-train">
       <h2>Training</h2>
       <div id="train" style="display:flex;flex-direction:column;gap:14px"></div>
-      <p class="hint" style="text-align:center">Vector v<span id="ver">0.2</span></p>
+      <p class="hint" style="text-align:center">Vector v<span id="ver">0.3</span></p>
     </section>
   </main>
 
@@ -400,7 +437,7 @@ h2.sub{margin-top:8px}
 
 <script>
 (()=>{'use strict';
-const VERSION='0.2';
+const VERSION='0.3';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const mem={};
 const store={
@@ -408,10 +445,10 @@ const store={
   set(k,v){mem[k]=v;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
   del(k){delete mem[k];try{localStorage.removeItem(k)}catch(e){}}
 };
-const DEF={goal:3,effort:'steady',mode:'free',distKm:3,timeMin:20,ivRun:2,ivWalk:1,ivRounds:6,paceAdj:0,voice:true,beeps:true,wgoal:2,deb:'run',circ:{}};
+const DEF={goal:3,effort:'steady',mode:'free',distKm:3,timeMin:20,ivRun:2,ivWalk:1,ivRounds:6,paceAdj:0,voice:true,beeps:true,wgoal:2,deb:'run',circ:{},myActs:[],lastAct:null};
 let S=Object.assign({},DEF,store.get('vector.settings',{}));
-let runs=store.get('vector.runs',[]),workouts=store.get('vector.workouts',[]);
-const save=()=>{store.set('vector.runs',runs);store.set('vector.workouts',workouts);store.set('vector.settings',S)};
+let runs=store.get('vector.runs',[]),workouts=store.get('vector.workouts',[]),acts=store.get('vector.acts',[]);
+const save=()=>{store.set('vector.runs',runs);store.set('vector.workouts',workouts);store.set('vector.acts',acts);store.set('vector.settings',S)};
 
 /* ---------- helpers ---------- */
 const pad=n=>String(n).padStart(2,'0');
@@ -432,11 +469,18 @@ function project(pts,w,h,m){
   const ox=(w-sx*s)/2,oy=(h-sy*s)/2;
   return pts.map(p=>[ox+(p[1]-c)*k*s,h-oy-(p[0]-a)*s]);
 }
-let toastT;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),4200)}
+let toastT,toastAt=0,toastBusy=false;const toastQ=[];
+function showToast(){const e=$('#toast');if(!toastQ.length){e.classList.remove('on');toastBusy=false;return}toastBusy=true;toastAt=Date.now();e.textContent=toastQ.shift();e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(showToast,toastQ.length?1800:4200)}
+function toast(t){
+  if(toastBusy&&!toastQ.length&&$('#toast').textContent===t){clearTimeout(toastT);toastT=setTimeout(showToast,4200);return}
+  if(toastQ[toastQ.length-1]===t)return;
+  toastQ.push(t);
+  if(!toastBusy)showToast();else{clearTimeout(toastT);toastT=setTimeout(showToast,Math.max(0,1800-(Date.now()-toastAt)))}
+}
 
 /* ---------- pace recommendation ---------- */
 const EFFORT={easy:{m:1.06,name:'Easy effort',note:'Easy: slow enough to talk in full sentences. Most runs should be this.'},steady:{m:1,name:'Steady effort',note:'Steady: your normal comfortable pace.'},push:{m:.95,name:'Push effort',note:'Push: hard but controlled. Once a week at most.'}};
-const recent=()=>runs.filter(r=>r.dist>=800&&!r.sample&&!r.sim).slice(-5);
+const recent=()=>runs.filter(r=>r.dist>=800&&r.dur>0&&!r.sample&&!r.sim).slice(-5);
 function basePace(){const r=recent().map(runPace).sort((a,b)=>a-b);return r.length?r[Math.floor(r.length/2)]:450}
 function recPace(){return Math.max(180,Math.round((basePace()*EFFORT[S.effort].m+S.paceAdj)/5)*5)}
 function recSource(){const n=recent().length;return n?`From your last ${n} run${n>1?'s':''}`:'Starter pace'}
@@ -506,7 +550,7 @@ function simStep(){
   if(!R||R.state!=='run')return;
   const dt=.25*R.scale,walk=R.phase==='walk';
   const v=walk?1.5:1000/R.target*(.97+.07*Math.sin(R.el/95)+.03*Math.sin(R.el/23));
-  R.simD+=v*dt;const r=420,a=R.simD/r,lat0=24.9575,lon0=121.2410,wob=1+.07*Math.sin(a*2);
+  R.simD+=v*dt;const r=420,a=R.simD/r,lat0=0,lon0=0,wob=1+.07*Math.sin(a*2);
   onPos(lat0+r*wob*Math.sin(a)/111320,lon0+r*wob*(1-Math.cos(a))/(111320*Math.cos(lat0*Math.PI/180)),5);
 }
 function onPos(lat,lon,acc){
@@ -607,7 +651,7 @@ function headline(run){
   const prev=runs.filter(r=>r.id!==run.id);
   if(!prev.length)return['First run logged','Every habit starts with run number one. This is yours.'];
   if(run.dist>Math.max(...prev.map(r=>r.dist)))return['New longest run',fKm(run.dist)+' km is the farthest you have gone.'];
-  const pp=prev.filter(r=>r.dist>=1000).map(runPace);
+  const pp=prev.filter(r=>r.dist>=1000&&r.dur>0).map(runPace);
   if(run.dist>=1000&&pp.length&&runPace(run)<Math.min(...pp))return['New fastest pace',fPace(runPace(run))+' /km beats every run in your log.'];
   const wk=inWeek(weekStart(Date.now())).length;
   if(wk===S.goal)return['Weekly goal reached',wk+' of '+S.goal+' runs done this week.'];
@@ -697,13 +741,37 @@ $('#fdone').onclick=()=>{$('#finale').classList.remove('on');cancelAnimationFram
 /* ---------- log ---------- */
 let openId=null,delId=null,logF='all';
 const fW=v=>String(+(+v).toFixed(1));
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const clean=(s,n)=>String(s==null?'':s).replace(/[<>&"'`\\]/g,'').replace(/\s+/g,' ').trim().slice(0,n||40);
+const fDur=m=>m>=60?Math.floor(m/60)+' h'+(m%60?' '+(m%60)+' min':''):m+' min';
+const byStart=(a,b)=>a.start-b.start;
+const arrOf=k=>k==='r'?runs:k==='w'?workouts:acts;
+const setArr=(k,v)=>{if(k==='r')runs=v;else if(k==='w')workouts=v;else acts=v};
+const uid=(arr,t)=>{while(arr.some(x=>x.id===t))t++;return t};
 const tally=ex=>{let vol=0,ns=0;ex.forEach(e=>{ns+=e.sets.length;if(e.type==='w')e.sets.forEach(s=>{vol+=s[0]*s[1]*(e.x2||e.side?2:1)})});return{vol:Math.round(vol),nsets:ns}};
-function mini(r){const q=project(r.pts||[],54,54,7);return`<svg class="mini" viewBox="0 0 54 54" aria-hidden="true">${q.length>1?`<polyline fill="none" stroke="#7fe9ff" stroke-width="1.6" stroke-linejoin="round" points="${q.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`:''}</svg>`}
+/* Other activities: anything that is not a GPS run or a guided workout */
+const ACTS=[['badminton','Badminton'],['taekwondo','Taekwondo'],['basketball','Basketball'],['cycling','Cycling'],['swimming','Swimming'],['hiking','Hiking'],['walk','Walk'],['stretch','Stretching']];
+const allEntries=()=>[...runs.map(d=>({k:'r',d})),...workouts.map(d=>({k:'w',d})),...acts.map(d=>({k:'a',d}))];
+function dayMap(){const m=new Map();allEntries().forEach(e=>{const t=dayStart(e.d.start);let o=m.get(t);if(!o){o={r:[],w:[],a:[]};m.set(t,o)}o[e.k].push(e.d)});return m}
+const prevDay=t=>{const d=new Date(t);d.setDate(d.getDate()-1);return d.getTime()};
+/* Active days: any day with a run, a workout or another activity */
+function activeStats(m){const today=dayStart(Date.now()),ws=weekStart(Date.now());let week=0,streak=0;for(const t of m.keys())if(t>=ws&&t<=today)week++;let t=m.has(today)?today:prevDay(today);while(m.has(t)){streak++;t=prevDay(t)}return{week,streak}}
+/* Days after `since` with a workout or another activity */
+const otherDays=since=>{const s=new Set(),t0=dayStart(since);workouts.concat(acts).forEach(x=>{const t=dayStart(x.start);if(t>t0)s.add(t)});return s.size};
+/* The latest other activity that felt hard, if it was today (d 0) or yesterday (d 1) */
+function hardAct(){const a=acts.filter(x=>x.feel==='hard').pop();if(!a)return null;const d=Math.round((dayStart(Date.now())-dayStart(a.start))/DAY);return d===0||d===1?{d,n:a.name.toLowerCase()}:null}
+
+/* One shape per kind of entry, so the calendar never depends on colour: circle run, square workout, diamond other */
+const GLY={r:'<circle cx="4" cy="4" r="3.4"/>',w:'<rect x=".8" y=".8" width="6.4" height="6.4" rx=".8"/>',a:'<path d="M4 0L8 4L4 8L0 4Z"/>'};
+const gly=k=>'<svg viewBox="0 0 8 8" aria-hidden="true">'+GLY[k]+'</svg>';
+function mini(r){const q=project(r.pts||[],54,54,7);return`<svg class="mini" viewBox="0 0 54 54" aria-hidden="true">${q.length>1?`<polyline fill="none" stroke="#7fe9ff" stroke-width="1.6" stroke-linejoin="round" points="${q.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`:'<circle cx="27" cy="27" r="9" fill="none" stroke="#7fe9ff" stroke-width="1.6"/>'}</svg>`}
 function wmini(w){
   const ex=w.ex.slice(0,7),n=ex.length||1,cw=Math.min(7,(40-(n-1)*2)/n),x0=(54-(n*cw+(n-1)*2))/2;let s='';
   ex.forEach((e,i)=>{const x=x0+i*(cw+2);e.sets.slice(0,6).forEach((_,k)=>{s+=`<rect x="${x.toFixed(1)}" y="${42-k*6}" width="${cw.toFixed(1)}" height="4" rx="1" fill="#7fe9ff"/>`})});
-  return`<svg class="mini" viewBox="0 0 54 54" aria-hidden="true">${s}</svg>`;
+  return`<svg class="mini" viewBox="0 0 54 54" aria-hidden="true">${s||'<rect x="19" y="19" width="16" height="16" rx="2" fill="none" stroke="#7fe9ff" stroke-width="1.6"/>'}</svg>`;
 }
+const amini=()=>'<svg class="mini" viewBox="0 0 54 54" aria-hidden="true"><path d="M27 16L38 27L27 38L16 27Z" fill="none" stroke="#7fe9ff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+const tags=d=>(d.sample?'<span class="tag">SAMPLE</span>':'')+(d.sim?'<span class="tag">SIMULATED</span>':'')+(d.sid?'<span class="tag n">VIA CHAT</span>':d.manual?'<span class="tag n">NO GPS</span>':'');
 function runNote(r){
   const sp=r.splits||[];if(sp.length<2)return'Run at least 2 km to get a pacing breakdown by kilometer.';
   const first=sp[0],last=sp[sp.length-1],d=last-first;
@@ -721,58 +789,188 @@ function setsText(e){
   return(v.length>3&&v.every(a=>a===v[0])?v.length+' × '+v[0]:v.join(', '))+u+side;
 }
 const delBtns=(key,what)=>delId===key?`<div class="row"><button class="btn small stop" data-del="${key}" type="button">Delete for good</button><button class="btn small" data-keep type="button">Keep</button></div>`:`<button class="btn small" data-ask="${key}" type="button">Delete this ${what}</button>`;
+const noteLine=d=>d.note?`<p class="hint">${esc(d.note)}</p>`:'';
 function runCard(r){
   const key='r'+r.id,open=openId===key,sp=r.splits||[],mx=Math.max(...sp,1),mn=Math.min(...sp);
   return`<article class="run"><button type="button" data-id="${key}" aria-expanded="${open}">${mini(r)}
-      <span><span class="when">${fDate(r.start)}${r.sample?'<span class="tag">SAMPLE</span>':''}${r.sim?'<span class="tag">SIMULATED</span>':''}</span><br><span class="big">${fKm(r.dist)} km</span></span>
-      <span class="meta">${fTime(r.dur)}<br>${fPace(runPace(r))} /km</span></button>
+      <span><span class="when">${fDate(r.start)}${tags(r)}</span><br><span class="big">${fKm(r.dist)} km</span></span>
+      <span class="meta">${r.dur?fTime(r.dur):'–'}<br>${fPace(runPace(r))} /km</span></button>
       ${open?`<div class="detail">
         ${sp.length?`<div><div class="lab" style="margin-bottom:8px">Splits per km</div>${sp.map((s,i)=>`<div class="split${s===mn&&sp.length>1?' best':''}"><span>${i+1} km</span><div class="bar"><i style="width:${(s/mx*100).toFixed(0)}%"></i></div><span style="text-align:right">${fPace(s)}</span></div>`).join('')}</div>`:''}
-        <p class="hint">${runNote(r)}</p>
-        <p class="hint">Target was ${fPace(r.target)} /km${r.feel?' · Felt '+r.feel:''}${r.mode&&r.mode!=='free'?' · '+({dist:'Distance run',time:'Timed run',iv:'Intervals'})[r.mode]:''}</p>
-        ${delBtns(key,'run')}
+        ${r.manual?`<p class="hint">Logged without GPS, so there is no route or split data.${r.feel?' Felt '+r.feel+'.':''}</p>`:`<p class="hint">${runNote(r)}</p>
+        <p class="hint">Target was ${fPace(r.target)} /km${r.feel?' · Felt '+r.feel:''}${r.mode&&r.mode!=='free'?' · '+({dist:'Distance run',time:'Timed run',iv:'Intervals'})[r.mode]:''}</p>`}
+        ${noteLine(r)}${delBtns(key,'run')}
       </div>`:''}</article>`;
 }
 function wCard(w){
   const key='w'+w.id,open=openId===key;
   return`<article class="run"><button type="button" data-id="${key}" aria-expanded="${open}">${wmini(w)}
-      <span><span class="when">${fDate(w.start)}${w.sample?'<span class="tag">SAMPLE</span>':''}</span><br><span class="big nm">${w.name}</span></span>
-      <span class="meta">${fTime(w.dur)}<br>${w.nsets} set${w.nsets===1?'':'s'}</span></button>
+      <span><span class="when">${fDate(w.start)}${tags(w)}</span><br><span class="big nm">${esc(w.name)}</span></span>
+      <span class="meta">${w.dur?fTime(w.dur):'–'}<br>${w.nsets?w.nsets+' set'+(w.nsets===1?'':'s'):'no sets'}</span></button>
       ${open?`<div class="detail">
-        <div>${w.ex.map(e=>`<div class="wl">${e.n}<span>${setsText(e)}</span></div>`).join('')}</div>
-        <p class="hint">${w.vol?w.vol.toLocaleString('en-US')+' kg lifted in total':w.kind+' session'}${w.feel?' · Felt '+w.feel:''}</p>
-        ${delBtns(key,'workout')}
+        ${w.ex.length?`<div>${w.ex.map(e=>`<div class="wl">${esc(e.n)}<span>${setsText(e)}</span></div>`).join('')}</div>`:''}
+        <p class="hint">${w.vol?w.vol.toLocaleString('en-US')+' kg lifted in total':w.nsets?esc(w.kind)+' session':'Logged without set details'}${w.feel?' · Felt '+w.feel:''}</p>
+        ${noteLine(w)}${delBtns(key,'workout')}
       </div>`:''}</article>`;
 }
-function renderLog(){
-  const L=$('#logList');
-  $$('#logFilter button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===logF));
-  if(!runs.length&&!workouts.length){L.innerHTML=`<div class="panel mark"><p>Nothing logged yet. Every run and workout you finish appears here with its details.</p><p class="hint">Want to see how the log and debrief look when they are full?</p><button class="btn small" id="sample" type="button">Load sample data</button></div>`;return}
-  const items=[...runs.map(d=>({k:'r',d})),...workouts.map(d=>({k:'w',d}))].filter(i=>logF==='all'||i.k===logF).sort((a,b)=>b.d.start-a.d.start);
-  const hasSample=runs.some(r=>r.sample)||workouts.some(w=>w.sample);
-  L.innerHTML=(hasSample?`<div class="panel warn"><p class="hint">Entries tagged SAMPLE are made-up examples, not yours.</p><button class="btn small" id="clearSample" type="button">Remove sample data</button></div>`:'')+
-    (items.length?items.map(i=>i.k==='r'?runCard(i.d):wCard(i.d)).join(''):`<div class="panel"><p class="hint">${logF==='r'?'No runs logged yet. Start one from the Run tab.':'No workouts logged yet. Start one from the Train tab.'}</p></div>`);
+function aCard(a){
+  const key='a'+a.id,open=openId===key;
+  return`<article class="run"><button type="button" data-id="${key}" aria-expanded="${open}">${amini()}
+      <span><span class="when">${fDate(a.start)}${tags(a)}</span><br><span class="big nm">${esc(a.name)}</span></span>
+      <span class="meta">${a.min?fDur(a.min):'–'}<br>${a.feel?'Felt '+a.feel:''}</span></button>
+      ${open?`<div class="detail">
+        <p class="hint">${a.min?fDur(a.min):'Duration not set. Tap Edit to add it.'}${a.feel?' · Felt '+a.feel:''}${a.sid?' · Added from your chat with Claude':''}</p>
+        ${noteLine(a)}${delId===key?delBtns(key,'activity'):`<div class="row"><button class="btn small" data-edit="${key}" type="button">Edit</button><button class="btn small" data-ask="${key}" type="button">Delete</button></div>`}
+      </div>`:''}</article>`;
 }
-$('#logList').onclick=e=>{
+const card=i=>i.k==='r'?runCard(i.d):i.k==='w'?wCard(i.d):aCard(i.d);
+
+/* ---------- log: calendar ---------- */
+let calAt=null,calSel=null,calPop=[],addOpen=false,F=null;
+function renderCal(){
+  const now=new Date(),today=dayStart(now.getTime());
+  if(calSel==null)calSel=today;
+  if(!calAt)calAt=new Date(now.getFullYear(),now.getMonth(),1);
+  const y=calAt.getFullYear(),mo=calAt.getMonth(),n=new Date(y,mo+1,0).getDate(),off=(calAt.getDay()+6)%7,m=dayMap(),st=activeStats(m);
+  const isCur=y===now.getFullYear()&&mo===now.getMonth();
+  let cells='',mCount=0;
+  for(let i=0;i<off;i++)cells+='<span></span>';
+  for(let d=1;d<=n;d++){
+    const t=new Date(y,mo,d).getTime(),o=m.get(t),cnt=o?o.r.length+o.w.length+o.a.length:0;
+    if(o)mCount++;
+    cells+=`<button type="button" class="cd${o?' on':''}${t===today?' today':''}${t===calSel?' sel':''}${calPop.includes(t)?' pop':''}" data-day="${t}"${t>today?' disabled':''} aria-pressed="${t===calSel}" aria-label="${fDate(t)}: ${cnt?cnt+' entr'+(cnt>1?'ies':'y'):'nothing logged'}"><span class="dn">${d}</span><span class="mk">${o?['r','w','a'].filter(k=>o[k].length).map(gly).join(''):''}</span></button>`;
+  }
+  calPop=[];
+  $('#cal').innerHTML=`<div class="calh"><button type="button" data-cal="-1" aria-label="Previous month">‹</button><span class="calt">${calAt.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</span><button type="button" data-cal="1" aria-label="Next month"${isCur?' disabled':''}>›</button></div>
+    <div class="calg">${['M','T','W','T','F','S','S'].map(x=>`<span class="wd">${x}</span>`).join('')}${cells}</div>
+    <div class="lg"><span>${gly('r')}Run</span><span>${gly('w')}Workout</span><span>${gly('a')}Other activity</span></div>
+    <div><span class="lab">Active days</span><div class="stats" style="margin-top:6px"><div class="stat"><span class="lab">This week</span><b>${st.week}</b></div><div class="stat"><span class="lab">${calAt.toLocaleDateString('en-US',{month:'short'})}</span><b>${mCount}</b></div><div class="stat"><span class="lab">In a row</span><b>${st.streak}</b></div></div></div>`;
+}
+const fstep=(k,label,val)=>`<div class="stepper"><span>${label}</span><button type="button" data-fs="${k}" data-d="-1" aria-label="Less: ${label}">−</button><output>${val}</output><button type="button" data-fs="${k}" data-d="1" aria-label="More: ${label}">+</button></div>`;
+function formHtml(){
+  const my=S.myActs||[],isMy=F.type==='custom'&&!F.other&&my.includes(F.name),chip=(v,l,on,x)=>`<button type="button" data-ft="${v}"${x||''} aria-pressed="${!!on}">${esc(l)}</button>`;
+  return`<div class="panel mark" id="addForm"><span class="lab">${F.edit!=null?'Edit activity':'What did you do?'}</span>
+    <div class="chips">${ACTS.map(a=>chip(a[0],a[1],F.type===a[0])).join('')}${my.map(n=>chip('my',n,isMy&&F.name===n,' data-n="'+esc(n)+'"')).join('')}${F.edit!=null?'':chip('run','Run, no GPS',F.type==='run')}${chip('custom','Other',F.type==='custom'&&!isMy)}</div>
+    ${F.type==='custom'&&!isMy?`<input type="text" id="actName" maxlength="24" placeholder="Name it, for example Tennis" value="${esc(F.name)}" aria-label="Activity name" autocomplete="off">`:''}
+    ${F.type==='run'?fstep('km','Distance',F.km.toFixed(1)+' km'):''}
+    <div><div class="lab" style="margin-bottom:6px">Duration, minutes</div><div class="seg">${[30,45,60,90,120].map(v=>`<button type="button" data-fm="${v}" aria-pressed="${F.min===v}">${v}</button>`).join('')}</div></div>
+    ${fstep('min','Exact time',fDur(F.min))}
+    <div><div class="lab" style="margin-bottom:6px">Effort</div><div class="seg">${['easy','good','hard'].map(v=>`<button type="button" data-ff="${v}" aria-pressed="${F.feel===v}">${v}</button>`).join('')}</div></div>
+    <div class="row"><button class="btn go" type="button" data-save>Save</button><button class="btn" type="button" data-cancel>Cancel</button></div></div>`;
+}
+function renderDay(){
+  const today=dayStart(Date.now()),o=dayMap().get(calSel),isToday=calSel===today;
+  const list=o?[...o.r.map(d=>({k:'r',d})),...o.w.map(d=>({k:'w',d})),...o.a.map(d=>({k:'a',d}))].sort((a,b)=>a.d.start-b.d.start):[];
+  $('#dayBox').innerHTML=`<h2 class="sub">${fDate(calSel)}${isToday?' · Today':''}</h2>`+
+    (list.length?list.map(card).join(''):`<div class="panel"><p class="hint">${isToday?'Nothing logged yet today.':'Nothing logged on this day.'}</p></div>`)+
+    (addOpen&&F?formHtml():`<button class="btn add" type="button" data-add>Add activity${isToday?'':' to this day'}</button>`);
+}
+function openForm(rec){
+  const my=S.myActs||[];
+  if(rec){const p=ACTS.some(a=>a[0]===rec.type);F={edit:rec.id,type:p?rec.type:'custom',name:p?'':rec.name,other:!p&&!my.includes(rec.name),min:rec.min||60,km:3,feel:rec.feel||'good'}}
+  else{
+    const L=Array.isArray(S.lastAct)?S.lastAct:['badminton',''],ok=L[0]==='run'||ACTS.some(a=>a[0]===L[0])||(L[0]==='custom'&&my.includes(L[1]));
+    F={edit:null,type:ok?L[0]:'badminton',name:ok&&L[0]==='custom'?L[1]:'',other:false,min:ok&&L[0]==='run'?20:60,km:3,feel:'good'};
+  }
+  addOpen=true;
+}
+function saveForm(){
+  const today=dayStart(Date.now()),start=calSel===today?Date.now():calSel+12*3600e3,edited=F.edit!=null;let label;
+  if(F.type==='run'&&!edited){
+    runs.push({id:uid(runs,start),start,dur:F.min*60,dist:Math.round(F.km*1000),pts:[],splits:[],target:null,mode:'free',effort:null,feel:F.feel,manual:true});
+    runs.sort(byStart);label='Run';S.lastAct=['run',''];
+  }else{
+    let type=F.type,name;
+    if(type==='custom'){
+      name=clean(F.name,24);
+      if(!name){toast('Give the activity a name first.');const i=$('#actName');if(i)i.focus();return}
+      const p=ACTS.find(a=>a[1].toLowerCase()===name.toLowerCase());
+      if(p){type=p[0];name=p[1]}else S.myActs=[name].concat((S.myActs||[]).filter(n=>n.toLowerCase()!==name.toLowerCase())).slice(0,6);
+    }else name=ACTS.find(a=>a[0]===type)[1];
+    const old=edited?acts.find(x=>x.id===F.edit):null;
+    if(old){old.type=type;old.name=name;old.min=F.min;old.feel=F.feel}
+    else acts.push({id:uid(acts,start),start,type,name,min:F.min,feel:F.feel});
+    acts.sort(byStart);label=name;S.lastAct=[type,type==='custom'?name:''];
+  }
+  save();addOpen=false;F=null;calPop=[calSel];openId=delId=null;renderLog();
+  const wk=activeStats(dayMap()).week;
+  toast(edited?label+' updated.':label+' added. '+wk+' active day'+(wk===1?'':'s')+' this week.');
+}
+const showForm=()=>{const f=$('#addForm');if(f)f.scrollIntoView({block:'nearest'})};
+$('#cal').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.cal){const now=new Date(),n=new Date(calAt.getFullYear(),calAt.getMonth()+ +b.dataset.cal,1);if(n>new Date(now.getFullYear(),now.getMonth(),1))return;calAt=n;renderCal();return}
+  if(b.dataset.day){calSel=+b.dataset.day;addOpen=false;F=null;renderCal();renderDay()}
+};
+$('#dayBox').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const d=b.dataset;
+  if('add' in d){openForm(null);renderDay();showForm();return}
+  if(addOpen&&F&&b.closest('#addForm')){
+    if(d.ft==='my'){F.type='custom';F.name=d.n;F.other=false}
+    else if(d.ft){if(d.ft==='run'&&F.type!=='run')F.min=20;else if(d.ft!=='run'&&F.type==='run')F.min=60;F.type=d.ft;F.other=d.ft==='custom';if(F.other)F.name=''}
+    else if(d.fm)F.min=+d.fm;
+    else if(d.fs==='min')F.min=Math.max(5,Math.min(600,F.min+5*d.d));
+    else if(d.fs==='km')F.km=Math.max(.5,Math.min(100,+(F.km+.5*d.d).toFixed(1)));
+    else if(d.ff)F.feel=d.ff;
+    else if('cancel' in d){addOpen=false;F=null}
+    else if('save' in d){saveForm();return}
+    renderDay();
+    if(d.ft==='custom'){const i=$('#actName');if(i)i.focus()}
+    return;
+  }
+  logClick(e);
+};
+$('#dayBox').addEventListener('input',e=>{if(e.target.id==='actName'&&F)F.name=e.target.value});
+$('#dayBox').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='actName'&&F){e.preventDefault();saveForm()}});
+
+/* ---------- log: list ---------- */
+function syncInfo(){
+  const n=allEntries().filter(i=>i.d.sid).length;
+  $('#syncInfo').textContent=(SY.at?'Last checked '+fDate(SY.at)+', '+new Date(SY.at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'Not checked yet')+' · '+n+' entr'+(n===1?'y':'ies')+' from chat in your log';
+}
+function renderLog(){
+  renderCal();renderDay();
+  const L=$('#logList'),all=allEntries();
+  $$('#logFilter button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===logF));
+  if(!all.length)L.innerHTML=`<div class="panel"><p>Nothing logged yet. Runs and workouts you finish appear here, along with any activity you add on the calendar or tell Claude about.</p><p class="hint">Want to see how the log and debrief look when they are full?</p><button class="btn small" id="sample" type="button">Load sample data</button></div>`;
+  else{
+    const items=all.filter(i=>logF==='all'||i.k===logF).sort((a,b)=>b.d.start-a.d.start);
+    L.innerHTML=(all.some(i=>i.d.sample)?`<div class="panel warn"><p class="hint">Entries tagged SAMPLE are made-up examples, not yours.</p><button class="btn small" id="clearSample" type="button">Remove sample data</button></div>`:'')+
+      (items.length?items.map(card).join(''):`<div class="panel"><p class="hint">${{r:'No runs logged yet. Start one from the Run tab.',w:'No workouts logged yet. Start one from the Train tab.',a:'No other activities yet. Pick a day on the calendar and tap Add activity.'}[logF]}</p></div>`);
+  }
+  syncInfo();
+}
+function logClick(e){
   const t=e.target.closest('button');if(!t)return;
-  if(t.id==='sample'){loadSamples();loadSampleWorkouts();toast('Sample data loaded. It is tagged SAMPLE.')}
-  else if(t.id==='clearSample'){runs=runs.filter(r=>!r.sample);workouts=workouts.filter(w=>!w.sample);save()}
+  if(t.id==='sample'){loadSamples();loadSampleWorkouts();loadSampleActs();toast('Sample data loaded. It is tagged SAMPLE.')}
+  else if(t.id==='clearSample'){runs=runs.filter(r=>!r.sample);workouts=workouts.filter(w=>!w.sample);acts=acts.filter(a=>!a.sample);save()}
   else if(t.dataset.id){openId=openId===t.dataset.id?null:t.dataset.id;delId=null}
   else if(t.dataset.ask)delId=t.dataset.ask;
   else if('keep' in t.dataset)delId=null;
-  else if(t.dataset.del){const k=t.dataset.del[0],id=+t.dataset.del.slice(1);if(k==='r')runs=runs.filter(r=>r.id!==id);else workouts=workouts.filter(w=>w.id!==id);save();delId=openId=null}
+  else if(t.dataset.del){
+    const k=t.dataset.del[0],id=+t.dataset.del.slice(1),x=arrOf(k).find(r=>r.id===id);
+    if(x&&x.sid&&!SY.gone.includes(x.sid)){SY.gone.push(x.sid);store.set('vector.sync',SY)}
+    setArr(k,arrOf(k).filter(r=>r.id!==id));save();delId=openId=null;
+  }
+  else if(t.dataset.edit){
+    const a=acts.find(x=>x.id===+t.dataset.edit.slice(1));if(!a)return;
+    const dt=new Date(a.start);calSel=dayStart(a.start);calAt=new Date(dt.getFullYear(),dt.getMonth(),1);openForm(a);renderLog();showForm();return;
+  }
+  else return;
   renderLog();
-};
+}
+$('#logList').onclick=logClick;
 $('#logFilter').onclick=e=>{const b=e.target.closest('button');if(b){logF=b.dataset.v;renderLog()}};
 function loadSamples(){
   const now=Date.now(),plan=[[19,2.1,472],[17,2.4,466],[14,3.0,463],[12,2.6,455],[9,3.2,451],[6,3.5,447],[3,4.0,442],[1,3.1,437]];
   plan.forEach(([ago,km,pace],i)=>{
     const dist=km*1000,dur=Math.round(km*pace),start=now-ago*DAY-i*3600e3,rad=dist/6.283,pts=[],splits=[];
     for(let k=0;k<Math.floor(km);k++)splits.push(Math.round(pace*(.955+.03*k+(i%3===0?-.02*k:0))));
-    for(let j=0;j<=60;j++){const a=j/60*6.283,wb=1+.2*Math.sin(a*(2+i%3)+i);pts.push([+(24.9575+rad*wb*Math.sin(a)/111320).toFixed(5),+(121.241+rad*wb*(1-Math.cos(a))/101000).toFixed(5),Math.round(dur*j/60),Math.round(dist*j/60)])}
+    for(let j=0;j<=60;j++){const a=j/60*6.283,wb=1+.2*Math.sin(a*(2+i%3)+i);pts.push([+(rad*wb*Math.sin(a)/111320).toFixed(5),+(rad*wb*(1-Math.cos(a))/111320).toFixed(5),Math.round(dur*j/60),Math.round(dist*j/60)])}
     runs.push({id:start,start,dur,dist,pts,splits,target:pace,mode:'free',effort:'steady',feel:['good','good','hard','easy'][i%4],sample:true});
   });
-  runs.sort((a,b)=>a.start-b.start);save();
+  runs.sort(byStart);save();
 }
 function loadSampleWorkouts(){
   const now=Date.now(),plan=[[20,'gymA',0],[18,'gymB',0],[15,'gymA',1],[13,'gymB',1],[11,'legs',0],[8,'gymA',2],[6,'gymB',2],[4,'gymA',3],[2,'gymB',3]];
@@ -785,14 +983,77 @@ function loadSampleWorkouts(){
     });
     workouts.push(Object.assign({id:start,start,dur:r.min*60+i*40,rid,name:r.n,kind:r.k,mode:'s',ex,feel:['good','good','hard','easy'][i%4],sample:true},tally(ex)));
   });
-  workouts.sort((a,b)=>a.start-b.start);save();
+  workouts.sort(byStart);save();
 }
-$('#copyBk').onclick=async()=>{const txt=JSON.stringify({app:'vector',v:2,runs,workouts,settings:S});
+function loadSampleActs(){
+  const now=Date.now();
+  [[16,'badminton',60,'good'],[7,'cycling',45,'easy']].forEach(([ago,type,min,feel],i)=>{
+    const start=now-ago*DAY-(5+i)*1800e3;acts.push({id:uid(acts,start),start,type,name:ACTS.find(a=>a[0]===type)[1],min,feel,sample:true});
+  });
+  acts.sort(byStart);save();
+}
+$('#copyBk').onclick=async()=>{const txt=JSON.stringify({app:'vector',v:3,runs,workouts,acts,settings:S});
   try{await navigator.clipboard.writeText(txt);toast('Backup copied. Paste it somewhere safe, like a note to yourself.')}catch(e){$('#bkText').value=txt;toast('Copy was blocked. The backup text is in the box, select and copy it.')}};
 $('#restoreBk').onclick=()=>{try{const o=JSON.parse($('#bkText').value);if(!o||!Array.isArray(o.runs))throw 0;
-  let n=0;const add=(arr,src,ok)=>{const ids=new Set(arr.map(r=>r.id));(Array.isArray(src)?src:[]).forEach(r=>{if(r&&r.id&&!ids.has(r.id)&&ok(r)){arr.push(r);n++}});arr.sort((a,b)=>a.start-b.start)};
-  add(runs,o.runs,r=>isFinite(r.dist)&&isFinite(r.dur));add(workouts,o.workouts,w=>Array.isArray(w.ex)&&isFinite(w.dur));
+  let n=0;const add=(arr,src,ok)=>{const ids=new Set(arr.map(r=>r.id));(Array.isArray(src)?src:[]).forEach(r=>{if(r&&r.id&&!ids.has(r.id)&&ok(r)){arr.push(r);n++}});arr.sort(byStart)};
+  add(runs,o.runs,r=>isFinite(r.dist)&&isFinite(r.dur));add(workouts,o.workouts,w=>Array.isArray(w.ex)&&isFinite(w.dur));add(acts,o.acts,a=>typeof a.name==='string'&&isFinite(a.start));
   save();$('#bkText').value='';renderLog();toast(n+' entr'+(n===1?'y':'ies')+' restored.')}catch(e){toast('That text is not a Vector backup. Paste the full text from Copy backup.')}};
+
+/* ---------- log by chat ---------- */
+/* Claude adds entries to inbox.json in the app's own repository. The app copies new ones into the log on this phone.
+   SY.seen remembers each entry as it was last read, so a corrected entry replaces the old copy and local edits are kept otherwise.
+   SY.gone lists entries deleted on this phone, so they never come back. */
+let SY=Object.assign({seen:{},gone:[],at:0},store.get('vector.sync',{})),syncBusy=false,syncTry=0;
+function findSid(sid){for(const k of['r','w','a']){const i=arrOf(k).findIndex(x=>x.sid===sid);if(i>=0)return{k,i}}return null}
+function fromInbox(it){
+  const dm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(it.date||''),tm=/^(\d{1,2}):(\d{2})$/.exec(it.time||'');
+  if(!dm)throw 0;
+  const start=new Date(+dm[1],+dm[2]-1,+dm[3],tm?+tm[1]:12,tm?+tm[2]:0).getTime();
+  if(!isFinite(start))throw 0;
+  const feel=['easy','good','hard'].includes(it.feel)?it.feel:null,min=it.min>0?+it.min:null,note=clean(it.note,140);
+  if(it.k==='r'){
+    const dist=Math.round(+it.km*1000);if(!(dist>0))throw 0;
+    return['r',{start,dur:min?Math.round(min*60):0,dist,pts:[],splits:[],target:null,mode:'free',effort:null,feel,manual:true,note}];
+  }
+  if(it.k==='w'){
+    const ex=(Array.isArray(it.ex)?it.ex:[]).map(x=>{
+      const e=x&&Object.prototype.hasOwnProperty.call(EX,x.id)?EX[x.id]:null,sets=(x&&Array.isArray(x.sets)?x.sets:[]).filter(s=>Array.isArray(s)&&s[1]>0).map(s=>[Math.max(0,+s[0]||0),Math.round(+s[1])]);
+      if(!sets.length)return null;
+      const n=e?e.n:clean(x.n)||'Exercise',type=e?e.type:['w','bw','t'].includes(x.type)?x.type:sets.some(s=>s[0]>0)?'w':'bw';
+      return{id:e?x.id:'x-'+n.toLowerCase().replace(/[^a-z0-9]+/g,'-'),n,type,g:e?e.g:['legs','push','pull','core','cardio'].includes(x.g)?x.g:'other',target:x.target>0?Math.round(+x.target):Math.max(...sets.map(s=>s[1])),planned:sets.length,x2:e&&e.x2?1:0,side:e&&e.side?1:0,sets};
+    }).filter(Boolean);
+    return['w',Object.assign({start,dur:min?Math.round(min*60):0,rid:ROUT.some(r=>r.id===it.rid)?it.rid:'manual',name:clean(it.name)||'Workout',kind:'Logged',mode:'s',ex,feel,manual:true,note},tally(ex))];
+  }
+  const p=ACTS.find(a=>a[0]===it.type);
+  return['a',{start,type:p?p[0]:'custom',name:clean(it.name,24)||(p?p[1]:'Activity'),min:min?Math.round(min):null,feel,note}];
+}
+async function syncInbox(manual){
+  if(syncBusy)return;syncBusy=true;syncTry=Date.now();
+  let added=0,changed=0,ok=false;const days=[];
+  try{
+    const res=await fetch('inbox.json?t='+Date.now(),{cache:'no-store'});if(!res.ok)throw 0;
+    const box=await res.json();if(!box||!Array.isArray(box.items))throw 0;
+    ok=true;
+    (Array.isArray(box.removed)?box.removed:[]).forEach(id=>{const f=findSid(id);if(f){arrOf(f.k).splice(f.i,1);changed++}delete SY.seen[id]});
+    box.items.forEach(it=>{try{
+      if(!it||typeof it.id!=='string'||SY.gone.includes(it.id))return;
+      const sig=JSON.stringify(it),f=findSid(it.id);
+      if(f&&(!SY.seen[it.id]||SY.seen[it.id]===sig)){SY.seen[it.id]=sig;return}
+      const made=fromInbox(it),rec=made[1];
+      if(f){arrOf(f.k).splice(f.i,1);changed++}else added++;
+      const arr=arrOf(made[0]);rec.id=uid(arr,rec.start);rec.sid=it.id;arr.push(rec);arr.sort(byStart);
+      SY.seen[it.id]=sig;days.push(dayStart(rec.start));
+    }catch(e){}});
+    SY.at=Date.now();
+  }catch(e){}
+  syncBusy=false;store.set('vector.sync',SY);
+  if(added||changed){save();calPop=days;openId=delId=null}
+  if(added||changed||manual)refresh();else syncInfo();
+  if(added)toast(added+' new entr'+(added===1?'y':'ies')+' from your chat with Claude '+(added===1?'is':'are')+' now in your log.');
+  else if(manual)toast(ok?(changed?'Your log was updated from chat.':'Nothing new. Entries show up about a minute after Claude confirms them.'):'Could not check right now. Connect to the internet and try again.');
+}
+$('#syncNow').onclick=()=>syncInbox(true);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-syncTry>60000)syncInbox()});
 
 /* ---------- debrief ---------- */
 function insights(){
@@ -802,12 +1063,13 @@ function insights(){
   const left=S.goal-tw.length,daysLeft=7-((new Date().getDay()+6)%7);
   if(left<=0)out.push({t:'good',h:'Weekly goal done',p:`${tw.length} runs this week against a goal of ${S.goal}. Anything more is a bonus, keep it easy.`});
   else out.push({t:left>daysLeft?'warn':'info',h:`${left} more run${left>1?'s':''} to hit this week's goal`,p:`${daysLeft} day${daysLeft>1?'s':''} left in the week, counting today. Short runs count.`});
-  if(gap>=4)out.push({t:'warn',h:`${gap} days since your last run`,p:'A short 15 minute easy run restarts the habit better than waiting for a perfect day.'});
+  if(gap>=4){const od=otherDays(last.start);out.push(od?{t:'info',h:`${gap} days since your last run`,p:`You still trained on ${od} of those days, so your fitness is fine. A short easy run keeps the running habit itself going.`}:{t:'warn',h:`${gap} days since your last run`,p:'A short 15 minute easy run restarts the habit better than waiting for a perfect day.'})}
+  const ha=hardAct();if(ha&&gap!==0)out.push({t:'info',h:`${ha.d?'Yesterday\u2019s':'Today\u2019s'} ${esc(ha.n)} was hard`,p:'Your body is still recovering from it. Keep the next run at Easy effort, or leave it for tomorrow.'});
   let streak=1;for(let i=runs.length-1;i>0;i--){const d=(dayStart(runs[i].start)-dayStart(runs[i-1].start))/DAY;if(d===1)streak++;else if(d>1)break}
   if(streak>=3&&gap<=1)out.push({t:'warn',h:`${streak} days in a row`,p:'Take a rest day or do the strength routine. Fitness is built while you recover.'});
   if(km(lw)>0&&km(tw)>km(lw)*1.3)out.push({t:'warn',h:`Distance is up ${Math.round((km(tw)/km(lw)-1)*100)}% on last week`,p:'Increases near 10% a week are kinder to shins and knees. Make the next run short and easy.'});
   const sp=last.splits||[];if(sp.length>=2)out.push({t:sp[sp.length-1]-sp[0]>Math.max(12,sp[0]*.04)?'warn':'good',h:'Pacing in your last run',p:runNote(last)});
-  const ok=runs.filter(r=>r.dist>=1000);if(ok.length>=6){const a=ok.slice(-3).reduce((s,r)=>s+runPace(r),0)/3,b=ok.slice(-6,-3).reduce((s,r)=>s+runPace(r),0)/3,d=Math.round(b-a);
+  const ok=runs.filter(r=>r.dist>=1000&&r.dur>0);if(ok.length>=6){const a=ok.slice(-3).reduce((s,r)=>s+runPace(r),0)/3,b=ok.slice(-6,-3).reduce((s,r)=>s+runPace(r),0)/3,d=Math.round(b-a);
     if(d>=4)out.push({t:'good',h:`${d} s/km faster than three runs ago`,p:`Your last three runs average ${fPace(a)} /km. The recommended pace has moved with you.`});
     else if(d<=-8)out.push({t:'info',h:'Recent runs are a little slower',p:'That is normal with heat, poor sleep or tired legs. Keep the effort easy and let pace come back on its own.'})}
   if(last.feel==='hard')out.push({t:'info',h:'Last run felt hard',p:'Set the next one to Easy effort. Most of your running should feel comfortable.'});
@@ -817,6 +1079,8 @@ function nextRun(){
   if(!runs.length)return'Start with intervals: run 2 minutes, walk 1 minute, 6 rounds. It is 18 minutes and it works.';
   const last=runs[runs.length-1],gap=Math.floor((dayStart(Date.now())-dayStart(last.start))/DAY),longest=Math.max(...runs.map(r=>r.dist));
   if(gap===0)return'You ran today. Do the cool-down stretches and come back tomorrow or the day after.';
+  const ha=hardAct();
+  if(ha)return ha.d?`Easy effort, ${Math.max(1.5,(last.dist/1000*.8)).toFixed(1)} km, or rest. Yesterday\u2019s ${esc(ha.n)} was hard.`:`Not today. The ${esc(ha.n)} already counts as today\u2019s exercise. Run tomorrow or the day after, at Easy effort.`;
   if(last.feel==='hard'||gap>=4)return`Easy effort, ${Math.max(1.5,(last.dist/1000*.8)).toFixed(1)} km. Finish feeling like you could do more.`;
   if(inWeek(weekStart(Date.now())).length===S.goal-1)return`Last run of the week: try ${(longest/1000*1.1).toFixed(1)} km at Easy effort, about 10% past your longest.`;
   return`Steady effort, around ${(last.dist/1000).toFixed(1)} km at ${fPace(recPace())} /km.`;
@@ -837,7 +1101,7 @@ function renderRunDebrief(){
   // weekly distance, last 8 weeks
   const wk=[];for(let i=7;i>=0;i--){const w=ws-i*7*DAY;wk.push({w,v:inWeek(w).reduce((s,r)=>s+r.dist,0)/1000})}
   h+=weekChart('Distance per week, km',wk,'km',1);
-  const ok=runs.filter(r=>r.dist>=800).slice(-10);
+  const ok=runs.filter(r=>r.dist>=800&&r.dur>0).slice(-10);
   if(ok.length>=2){
     const ps=ok.map(runPace),lo=Math.min(...ps),hi=Math.max(...ps),span=Math.max(10,hi-lo),li=ps.length-1,cw=266/li,X=i=>40+i*cw,Y=p=>24+(p-lo)/span*76;
     const line=ps.map((p,i)=>X(i).toFixed(1)+','+Y(p).toFixed(1)).join(' ');
@@ -905,6 +1169,8 @@ function sInsights(){
 function nextWorkout(){
   const gap=daysSince(workouts),nx=ROUT.find(r=>r.id===nextRid());
   if(gap===0)return'Done for today. Eat a proper meal, sleep well, and let the muscles rebuild.';
+  const ha=hardAct();
+  if(ha)return(ha.d?'Rest or go light today. Yesterday\u2019s '+esc(ha.n)+' was hard. ':'No weights today. The '+esc(ha.n)+' already did the job. ')+nx.n+' is next.';
   if(gap===1)return'Run or rest today. '+nx.n+' is next, tomorrow or the day after.';
   return nx.n+'. Your targets are already set from the last session.';
 }
@@ -1195,18 +1461,21 @@ const HABITS=[
  'When lifting, pick a weight where the last 2 reps are hard but your form stays clean. Add weight only after every set reaches its target.',
  'Do one or two lighter warm-up sets before the first heavy lift of the day.',
  'Leave about 48 hours before training the same muscles again. A run or a rest day fits in between.',
+ 'Other sports are training too. Log them on the calendar so rest days get planned around them.',
  'Raise your weekly running distance by about 10% at most. Sudden jumps are the usual cause of shin and knee trouble.',
  'Sleep 7 to 9 hours. That is when training turns into fitness.',
  'Drink water through the day, and more in hot or humid weather.',
  'Soreness that fades as you warm up is normal. Pain that sharpens, chest pain or dizziness means stop, and see a doctor if it does not settle.'
 ];
 function todayPick(){
-  const lr=daysSince(runs),lw=daysSince(workouts),nx=ROUT.find(r=>r.id===nextRid());
-  if(lr===null&&lw===null)return{h:'Day one',p:'Pick either: an Intervals run on the Run tab, or a workout below. At a gym, Full body A is the place to start.',rid:'gymA',sec:'warm'};
+  const lr=daysSince(runs),lw=daysSince(workouts),la=daysSince(acts),A=acts[acts.length-1],nx=ROUT.find(r=>r.id===nextRid());
+  if(lr===null&&lw===null&&la===null)return{h:'Day one',p:'Pick either: an Intervals run on the Run tab, or a workout below. At a gym, Full body A is the place to start.',rid:'gymA',sec:'warm'};
   if(lr===0&&lw===0)return{h:'Run and workout both done',p:'That is plenty for one day. Do the cool-down stretches and rest.',sec:'cool'};
   if(lw===0)return{h:'Workout done today',p:'Stretch, eat a proper meal and sleep well. Muscles get stronger while you rest.',sec:'cool'};
   if(lr===0)return{h:'You ran today',p:'Do the cool-down stretches now while your muscles are warm.',sec:'cool'};
+  if(la===0)return A.feel==='hard'?{h:esc(A.name)+' today, and it was a hard one',p:'That counts as today\u2019s exercise. Skip the run and the weights. Stretch, eat a proper meal and sleep well.',sec:'cool'}:{h:esc(A.name)+' today',p:'That counts as today\u2019s exercise. A short run or workout on top is optional.',sec:'cool'};
   if(lr===1&&lw===1)return{h:'Easy day',p:'You ran and lifted yesterday. Rest, or take an easy walk.',sec:'cool'};
+  if(la===1&&A.feel==='hard')return{h:'Easy day',p:'Yesterday\u2019s '+esc(A.name.toLowerCase())+' was hard. Rest, walk or stretch today, and train again tomorrow.',sec:'cool'};
   if(lw===1)return{h:'Run or rest day',p:'You lifted yesterday. An easy run fits today, and your muscles get their 48 hours.',sec:'warm'};
   if(lw===null||lr===1||(lr!==null&&lw>=lr))return{h:'Strength day',p:(lw===null?'No workouts logged yet. ':lr===1?'You ran yesterday. ':'It has been '+lw+' days since your last workout. ')+nx.n+' is next.',rid:nx.id,sec:'warm'};
   return{h:'Run day',p:(lr===null?'No runs logged yet. ':'It has been '+lr+' days since your last run. ')+'Warm up, then head out.',sec:'warm'};
@@ -1268,7 +1537,9 @@ function route(){
   $$('#nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+v));
   if(v==='run'){renderIdle();if(R)paint()}if(v==='log')renderLog();if(v==='debrief')renderDebrief();if(v==='train')renderTrain();
   $('#main').scrollTop=0;
+  if(v==='log'&&Date.now()-syncTry>60000)syncInbox();
 }
+function refresh(){const v=VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):'run';if(v==='run')renderIdle();else if(v==='log')renderLog();else if(v==='debrief')renderDebrief();else renderTrain()}
 addEventListener('hashchange',route);
 const lost=store.get('vector.active',null);
 if(lost&&lost.dist>=50&&!runs.some(r=>r.id===lost.id)){runs.push(lost);save();setTimeout(()=>toast('An unfinished run was recovered and saved to your log.'),600)}
@@ -1287,7 +1558,8 @@ if(wa&&Array.isArray(wa.ex)&&wa.ex.length){
     if(rec.nsets&&!workouts.some(w=>w.id===rec.id)){workouts.push(rec);workouts.sort((a,b)=>a.start-b.start);save();setTimeout(()=>toast('An unfinished workout was saved to your log.'),600)}
   }
 }
-if(store.get('vector.ver',null)!==VERSION){store.set('vector.ver',VERSION);if(!W)setTimeout(()=>toast('Vector v'+VERSION+': guided workouts are now in the Train tab.'),900)}
+if(store.get('vector.ver',null)!==VERSION){store.set('vector.ver',VERSION);if(!W)setTimeout(()=>toast('Vector v'+VERSION+': the Log tab now has a calendar for every kind of exercise.'),900)}
+syncInbox();
 if('serviceWorker' in navigator&&location.protocol==='https:'){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 })();
 </script>

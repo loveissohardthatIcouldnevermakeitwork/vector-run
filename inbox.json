@@ -1,0 +1,6 @@
+{
+  "v": 1,
+  "about": "Entries Claude adds from chat. The Vector app reads this file and copies new entries into the log on the phone. Format and rules are in CLAUDE.md.",
+  "items": [],
+  "removed": []
+}
